@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-white text-text-primary font-sans antialiased;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Smooth, site-wide theme transitions (scoped so it never runs before hydration) */
+  html.theme-transition,
+  html.theme-transition * {
+    transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, box-shadow 0.35s ease;
+  }
+
+  /* Layered dark surfaces (not pure black) for a high-end, shadow-driven look */
+  html.dark body {
+    background-color: #0b0d12;
+    color: #E6EEF8;
+  }
+
+  html.dark .card,
+  html.dark .surface {
+    background-color: #12151b;
+  }
+
+  html.dark .input {
+    background-color: #12151b;
+    color: #E6EEF8;
+  }
+
+  html.dark .btn-gray {
+    background-color: #171b23;
+    color: #E6EEF8;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-text-primary;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply relative inline-flex items-center justify-center px-8 py-4 font-bold text-lg rounded-2xl transition-all duration-150 select-none;
+    box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.2);
+    transform: translateY(0);
+  }
+
+  .btn:active {
+    box-shadow: 0 2px 0 0 rgba(0, 0, 0, 0.2);
+    transform: translateY(2px);
+  }
+
+  .btn-primary {
+    @apply btn bg-primary text-white border-b-4 border-primary-dark;
+  }
+
+  .btn-primary:hover {
+    @apply bg-primary-light;
+  }
+
+  .btn-secondary {
+    @apply btn bg-secondary text-text-primary border-b-4 border-secondary-dark;
+  }
+
+  .btn-secondary:hover {
+    @apply bg-secondary-light;
+  }
+
+  .btn-accent {
+    @apply btn bg-accent text-white border-b-4 border-accent-dark;
+  }
+
+  .btn-accent:hover {
+    @apply bg-accent-light;
+  }
+
+  .btn-gray {
+    @apply btn bg-neutral-dark text-text-primary border-b-4 border-text-light;
+  }
+
+  .btn-gray:hover {
+    @apply bg-neutral;
+  }
+
+  .btn-disabled {
+    @apply bg-locked text-text-light border-b-locked cursor-not-allowed;
+    box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .btn-disabled:active {
+    transform: translateY(0);
+    box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .card {
+    @apply bg-white rounded-2xl shadow-panel p-6 transition-shadow duration-200;
+  }
+
+  .card:hover {
+    @apply shadow-card-hover;
+  }
+
+  /* Neutral elevated surface for grouping content without a hard border */
+  .surface {
+    @apply bg-white rounded-2xl shadow-panel;
+  }
+
+  html.dark .card,
+  html.dark .surface {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .input {
+    @apply w-full px-4 py-3 rounded-xl bg-white text-text-primary text-lg font-semibold shadow-panel transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary/60;
+  }
+
+  .input::placeholder {
+    @apply text-text-light;
+  }
+
+  /* Hairline divider using a soft shadow instead of a heavy border */
+  .divider-y > * + * {
+    @apply shadow-divider-top;
+  }
+}
