@@ -1,55 +1,79 @@
-const CACHE_NAME = 'reenvision-cache-v3';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.png'
-];
+// ReEnvision service worker.
+//  - Navigations: network-first, so a new deploy shows up on the next reload
+//    (the old cache-first behaviour pinned users to stale builds forever).
+//  - Hashed build assets (/assets/*): cache-first — their names change per build.
+//  - Curriculum pages: stale-while-revalidate, so units read instantly offline
+//    and refresh quietly in the background.
+const CACHE_NAME = 'reenvision-cache-v4';
+const PRECACHE = ['/', '/index.html', '/manifest.json', '/icon.png'];
 
-// Install event - cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => Promise.allSettled(PRECACHE.map((u) => cache.add(u))))
+      .then(() => self.skipWaiting()),
   );
-  self.skipWaiting();
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    })
+    caches
+      .keys()
+      .then((names) => Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))))
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
 });
 
-// Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
-        // Cache successful responses for static assets
-        if (response.status === 200 && event.request.method === 'GET') {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+  const { request } = event;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // App shell: always try the network first.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const fresh = await fetch(request);
+          const cache = await caches.open(CACHE_NAME);
+          cache.put(request, fresh.clone());
+          return fresh;
+        } catch {
+          return (await caches.match(request)) || (await caches.match('/index.html')) || Response.error();
         }
-        return response;
-      }).catch(() => {
-        // Return offline page if available, otherwise basic response
-        return caches.match('/index.html');
-      });
-    })
+      })(),
+    );
+    return;
+  }
+
+  // Immutable build output: cache-first.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then(
+        (hit) =>
+          hit ||
+          fetch(request).then((res) => {
+            if (res.ok) caches.open(CACHE_NAME).then((c) => c.put(request, res.clone()));
+            return res;
+          }),
+      ),
+    );
+    return;
+  }
+
+  // Curriculum + icons + manifest: stale-while-revalidate.
+  event.respondWith(
+    (async () => {
+      const cached = await caches.match(request);
+      const network = fetch(request)
+        .then((res) => {
+          if (res.ok) caches.open(CACHE_NAME).then((c) => c.put(request, res.clone()));
+          return res;
+        })
+        .catch(() => cached);
+      return cached || network;
+    })(),
   );
 });
