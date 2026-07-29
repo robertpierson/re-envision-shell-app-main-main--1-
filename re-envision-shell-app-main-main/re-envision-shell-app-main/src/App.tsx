@@ -4,6 +4,7 @@ import Navigation from './navigation/Navigation';
 import HomeScreen from './screens/HomeScreen.tsx';
 import UnitMapScreen from './screens/UnitMapScreen.tsx';
 import LessonScreen from './screens/LessonScreen.tsx';
+import BossBattleScreen from './screens/BossBattleScreen.tsx';
 import LeaderboardScreen from './screens/LeaderboardScreen.tsx';
 import CertificationScreen from './screens/CertificationScreen.tsx';
 import ProfileScreen from './screens/ProfileScreen.tsx';
@@ -79,10 +80,11 @@ function App() {
     setCurrentScreen('unitmap');
   };
 
-  // Lesson screen has its own layout (no bottom nav)
+  // Lesson and boss screens have their own layout (no bottom nav)
   if (currentScreen === 'lesson' && activeUnit && activeLevel) {
+    const Screen = activeLevel.kind === 'quiz' ? BossBattleScreen : LessonScreen;
     return (
-      <LessonScreen
+      <Screen
         unit={activeUnit}
         level={activeLevel}
         onComplete={handleLevelDone}
