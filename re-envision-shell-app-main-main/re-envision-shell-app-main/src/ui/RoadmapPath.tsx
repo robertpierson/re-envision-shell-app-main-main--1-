@@ -2,16 +2,22 @@ import React from 'react';
 import { Check, Lock, Star, Trophy } from 'lucide-react';
 import { CourseUnit } from '../data/curriculum';
 
+import { UnitStatus } from '../lib/progress';
+
 interface RoadmapPathProps {
   units: CourseUnit[];
+  /** Real, progress-derived status per unit, parallel to `units`. */
+  statuses: UnitStatus[];
   activeUnitId: string;
   onSelect: (unitId: string) => void;
+  /** Opens the unit's world map. Only ever called for unlocked units. */
+  onOpen: (unit: CourseUnit) => void;
 }
 
 // Fixed design-time geometry so the squiggle math stays pixel-perfect
 // regardless of viewport (the whole trail scales down via CSS, only capped
 // by max-width — a horizontal scrollbar is the safety net on tiny screens).
-const WIDTH = 380;
+const WIDTH = 420;
 const CENTER_X = WIDTH / 2;
 const AMPLITUDE = 46;
 const CYCLES_PER_ROW = 0.6; // how tight the squiggle winds row-to-row
@@ -19,7 +25,7 @@ const NODE_SIZE = 76;
 const QUIZ_SIZE = 84;
 // Generous row height gives the hover tooltip and lesson chips of each unit
 // room to breathe so nothing overlaps the row above or below it.
-const ROW_H = 232;
+const ROW_H = 300;
 // Reserved space above the first node for its "Start"/hover badges — baked
 // into the geometry itself, since padding-top on an absolutely-positioned
 // container doesn't shift where its "top: Npx" children anchor.
@@ -71,7 +77,7 @@ const smoothPath = (points: { x: number; y: number }[]) => {
   return d;
 };
 
-const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect }) => {
+const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, statuses, activeUnitId, onSelect, onOpen }) => {
   const rows = buildRows(units);
 
   const points = rows.map((_, i) => ({
@@ -82,7 +88,7 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect
   const trailD = smoothPath(points);
 
   return (
-    <div className="mx-auto max-w-[380px] overflow-x-auto">
+    <div className="mx-auto max-w-[420px] overflow-x-auto">
       <div
         className="relative mx-auto"
         style={{ width: WIDTH, height: totalHeight, overflow: 'visible' }}
@@ -109,7 +115,7 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect
           const { x, y } = points[i];
 
           if (row.kind === 'quiz') {
-            const isQuizCompleted = units.slice(0, row.throughUnit).every((u) => u.status === 'completed');
+            const isQuizCompleted = statuses.slice(0, row.throughUnit).every((st) => st === 'completed');
 
             return (
               <div
@@ -145,9 +151,10 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect
           }
 
           const { unit, number } = row;
+          const status = statuses[number - 1];
           const isSelected = unit.id === activeUnitId;
-          const isLocked = unit.status === 'upcoming';
-          const isCompleted = unit.status === 'completed';
+          const isLocked = status === 'upcoming';
+          const isCompleted = status === 'completed';
           const color = PALETTE[(number - 1) % PALETTE.length];
 
           return (
@@ -161,15 +168,20 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect
                 UNIT: {unit.title}
               </div>
 
-              {unit.status === 'active' && !isSelected && (
+              {status === 'active' && !isSelected && (
                 <div className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-secondary px-3 py-1 text-[11px] font-bold uppercase tracking-[0.15em] text-white shadow-panel animate-fade-in-up">
                   Start
                 </div>
               )}
 
               <button
-                onClick={() => onSelect(unit.id)}
-                aria-label={unit.title}
+                onClick={() => {
+                  if (isLocked) return;
+                  onSelect(unit.id);
+                  onOpen(unit);
+                }}
+                aria-label={isLocked ? `${unit.title} (locked — finish the unit before it)` : unit.title}
+                aria-disabled={isLocked}
                 className={`
                   relative flex items-center justify-center rounded-full transition-all duration-200
                   hover:scale-110 active:scale-95
@@ -184,12 +196,12 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect
               >
                 <span className={`absolute inset-0 rounded-full ${isLocked ? 'bg-neutral-200 dark:bg-white/10' : ''}`} />
                 <span className={`relative flex items-center justify-center ${isLocked ? 'text-text-light' : 'text-white'}`}>
-                  {unit.status === 'completed' && <Check className="h-8 w-8" strokeWidth={3} />}
-                  {unit.status === 'active' && <Star className="h-8 w-8 fill-white" />}
+                  {status === 'completed' && <Check className="h-8 w-8" strokeWidth={3} />}
+                  {status === 'active' && <Star className="h-8 w-8 fill-white" />}
                   {isLocked && <Lock className="h-7 w-7" />}
                 </span>
 
-                {unit.status === 'active' && (
+                {status === 'active' && (
                   <span className="absolute inset-0 rounded-full animate-pulse" style={{ backgroundColor: `${color.bg}66` }} />
                 )}
 
@@ -205,13 +217,13 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, activeUnitId, onSelect
               </button>
 
               {/* Full lesson breakdown for this unit, always visible */}
-              <div className="mt-3 flex w-64 flex-col items-center text-center">
-                <p className="text-sm font-bold leading-snug text-text-primary dark:text-white">{unit.title}</p>
-                <div className="mt-2 flex flex-wrap justify-center gap-1.5">
+              <div className={`mt-4 flex w-80 flex-col items-center text-center ${isLocked ? 'opacity-50' : ''}`}>
+                <p className="text-sm font-bold leading-relaxed text-text-primary dark:text-white">{unit.title}</p>
+                <div className="mt-2.5 flex flex-wrap justify-center gap-2">
                   {unit.lessons.map((lesson) => (
                     <span
                       key={lesson}
-                      className="rounded-md bg-neutral dark:bg-white/10 px-2 py-1 text-[11px] font-semibold text-text-secondary dark:text-neutral-300"
+                      className="rounded-lg bg-neutral dark:bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold leading-relaxed text-text-secondary dark:text-neutral-300"
                     >
                       {lesson}
                     </span>

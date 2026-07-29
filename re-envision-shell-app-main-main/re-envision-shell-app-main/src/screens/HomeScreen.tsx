@@ -3,6 +3,7 @@ import { Bell, BookOpen, Clock, Heart, Sparkles, TrendingUp, Zap } from 'lucide-
 import Card from '../ui/Card';
 import RoadmapPath from '../ui/RoadmapPath';
 import { courses } from '../data/curriculum';
+import { unitStatuses } from '../lib/progress';
 import { Screen } from '../types';
 
 interface HomeScreenProps {
@@ -11,23 +12,25 @@ interface HomeScreenProps {
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0].id);
-  const [activeUnitId, setActiveUnitId] = useState(courses[0].units[0].id);
+  const [activeUnitId, setActiveUnitId] = useState<string | undefined>();
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? courses[0];
-  
-  // Safeguard if a course has fewer units or if we swap courses
-  const activeUnit = selectedCourse.units.find((u) => u.id === activeUnitId) ?? selectedCourse.units[0];
+
+  // Real, stored progress decides what is open — units unlock strictly in order.
+  const statuses = unitStatuses(selectedCourse.units);
+  const defaultUnit =
+    selectedCourse.units[Math.max(0, statuses.indexOf('active'))] ?? selectedCourse.units[0];
+  const activeUnit =
+    selectedCourse.units.find((u) => u.id === activeUnitId) ?? defaultUnit;
 
   const userXP = 3450;
   const streak = 7;
-  const progress = Math.round(
-    (selectedCourse.units.filter((u) => u.status !== 'upcoming').length / selectedCourse.units.length) * 100
-  );
+  const completedCount = statuses.filter((s) => s === 'completed').length;
+  const progress = Math.round((completedCount / selectedCourse.units.length) * 100);
 
   const handleCourseChange = (courseId: string) => {
-    const nextCourse = courses.find((c) => c.id === courseId) ?? courses[0];
-    setSelectedCourseId(nextCourse.id);
-    setActiveUnitId(nextCourse.units[0].id); // Always reset to Unit 1 on course change
+    setSelectedCourseId(courseId);
+    setActiveUnitId(undefined); // snap back to the first open unit of that course
   };
 
   return (
@@ -101,10 +104,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                 </span>
               </div>
               <button
-                onClick={() => onNavigate('lesson', activeUnit.lessonId)}
+                onClick={() => onNavigate('unitmap', activeUnit.lessonId)}
                 className="mt-5 rounded-2xl bg-white px-5 py-3 font-semibold text-primary transition hover:bg-white/90"
               >
-                Continue Lesson
+                Enter this unit's world
               </button>
             </div>
 
@@ -121,8 +124,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
               </div>
               <RoadmapPath
                 units={selectedCourse.units}
-                activeUnitId={activeUnitId}
+                statuses={statuses}
+                activeUnitId={activeUnit.id}
                 onSelect={setActiveUnitId}
+                onOpen={(unit) => onNavigate('unitmap', unit.lessonId)}
               />
             </Card>
           </div>
@@ -182,7 +187,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                     <Clock className="h-6 w-6 text-accent" />
                     <div>
                       <p className="font-bold text-text-primary">
-                        {selectedCourse.units.filter((u) => u.status === 'completed').length} Lessons
+                        {completedCount} Units
                       </p>
                       <p className="text-xs text-text-secondary">Completed</p>
                     </div>
