@@ -10,16 +10,19 @@
   "icons": [
     {
       "src": "/icon.png",
-      "sizes": "982x1016",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/icon.png",
-      "sizes": "982x1016",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
   ],
-  "categories": ["education", "productivity"]
+  "categories": [
+    "education",
+    "productivity"
+  ]
 }
