@@ -1,13 +1,30 @@
 import React, { useState } from 'react';
 import { Edit2, Award, Calendar, Target, TrendingUp, BookOpen, Clock } from 'lucide-react';
-import { placeholderUser } from '../data/placeholders';
+import { useSyncExternalStore } from 'react';
+import { getSnapshot, onStatsChange } from '../lib/stats';
+import { readProgress } from '../lib/progress';
+import { courses } from '../data/curriculum';
+import { levelsOf } from '../lib/progress';
 import AchievementModal from '../ui/AchievementModal';
 import ProfileEditModal from '../ui/ProfileEditModal';
 
 const ProfileScreen: React.FC = () => {
-  const user = placeholderUser;
-
-  // Profile uses placeholder user data (frontend-only)
+  const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
+  const done = readProgress();
+  const allLevels = courses.flatMap((c) => c.units.flatMap((u) => levelsOf(u)));
+  const lessonsCompleted = allLevels.filter((l) => done.has(l.id)).length;
+  const completionPct = Math.round((lessonsCompleted / allLevels.length) * 100);
+  const user = {
+    name: 'New Learner',
+    avatar: '🌟',
+    joinedDate: 'today',
+    stats: {
+      streak: stats.streak,
+      totalXP: stats.xp,
+      level: stats.level,
+      lessonsCompleted,
+    },
+  };
 
   const [selectedAchievement, setSelectedAchievement] = useState<null | { emoji: string; name: string; unlocked: boolean; description?: string }>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -84,7 +101,7 @@ const ProfileScreen: React.FC = () => {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="rounded-3xl bg-neutral dark:bg-white/5 p-4">
                     <p className="text-sm text-text-secondary dark:text-neutral-400">Hearts available</p>
-                    <p className="text-3xl font-bold text-text-primary dark:text-white">20</p>
+                    <p className="text-3xl font-bold text-text-primary dark:text-white">{stats.hearts}/{stats.maxHearts}</p>
                   </div>
                   <div className="rounded-3xl bg-neutral dark:bg-white/5 p-4">
                     <p className="text-sm text-text-secondary dark:text-neutral-400">Current streak</p>
@@ -101,11 +118,11 @@ const ProfileScreen: React.FC = () => {
                 </div>
                 <div className="mt-5">
                   <div className="flex items-center justify-between text-sm text-text-secondary mb-2">
-                    <span>Course completion</span>
-                    <span>68%</span>
+                    <span>Curriculum completion</span>
+                    <span>{completionPct}%</span>
                   </div>
                   <div className="w-full h-3 rounded-full bg-neutral-dark overflow-hidden">
-                    <div className="h-full bg-primary rounded-full" style={{ width: '68%' }} />
+                    <div className="h-full bg-primary rounded-full" style={{ width: `${completionPct}%` }} />
                   </div>
                 </div>
               </div>
@@ -118,13 +135,13 @@ const ProfileScreen: React.FC = () => {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="font-bold text-lg text-text-primary">Level {user.stats.level}</p>
-                      <p className="text-sm text-text-secondary">{user.stats.xp} / 2000 XP</p>
+                      <p className="font-bold text-lg text-text-primary">Level {stats.level}</p>
+                      <p className="text-sm text-text-secondary">{stats.into} / {stats.needed} XP</p>
                     </div>
                     <div className="w-full h-4 bg-neutral-dark rounded-full overflow-hidden">
                       <div
                         className="h-full bg-secondary rounded-full transition-all duration-500"
-                        style={{ width: `${(user.stats.xp / 2000) * 100}%` }}
+                        style={{ width: `${(stats.into / stats.needed) * 100}%` }}
                       />
                     </div>
                   </div>
@@ -183,13 +200,12 @@ const ProfileScreen: React.FC = () => {
                 <h2 className="font-bold text-xl text-text-primary mb-6">Recent Activity</h2>
 
                 <div className="space-y-4">
-                  {[
-                    { action: 'Completed lesson', detail: 'Foundations - Step 1', time: 'Today', xp: 15 },
-                    { action: 'Earned achievement', detail: '7 Day Streak', time: 'Today', xp: 50 },
-                    { action: 'Completed lesson', detail: 'Getting Started - Review', time: 'Yesterday', xp: 20 },
-                    { action: 'Leveled up!', detail: 'Reached Level 5', time: 'Yesterday', xp: 100 },
-                    { action: 'Completed lesson', detail: 'Getting Started - Basics', time: '2 days ago', xp: 15 },
-                  ].map((activity, i) => (
+                  {stats.notifications.slice(0, 6).map((n) => ({
+                    action: n.text,
+                    detail: '',
+                    time: new Date(n.at).toLocaleDateString(),
+                    xp: 0,
+                  })).map((activity, i) => (
                     <div key={i} className="flex items-start gap-4 pb-4 shadow-divider last:shadow-none last:pb-0">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                         <span className="text-lg">✓</span>
@@ -199,16 +215,17 @@ const ProfileScreen: React.FC = () => {
                         <p className="text-sm text-text-secondary truncate">{activity.detail}</p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="font-bold text-primary">+{activity.xp} XP</p>
                         <p className="text-xs text-text-light">{activity.time}</p>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <p className="text-xs text-text-light mt-6 text-center">
-                  Activity log is simulated in this UI shell
-                </p>
+                {stats.notifications.length === 0 && (
+                  <p className="text-xs text-text-light mt-2 text-center">
+                    Nothing yet — your finished lessons, level-ups and streaks land here.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -221,14 +238,14 @@ const ProfileScreen: React.FC = () => {
                 <h3 className="font-bold text-lg text-text-primary mb-4">Achievements</h3>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { emoji: '🌟', name: 'Rising Star', unlocked: true, description: 'Completed first course' },
-                    { emoji: '🔥', name: '7 Day Streak', unlocked: true, description: 'Kept a 7 day streak' },
-                    { emoji: '📖', name: '10 Lessons', unlocked: true, description: 'Completed 10 lessons' },
-                    { emoji: '⭐', name: 'Level 5', unlocked: true, description: 'Reached level 5' },
-                    { emoji: '🎯', name: 'Perfect Score', unlocked: false, description: 'Get a perfect assessment score' },
-                    { emoji: '🏆', name: 'Champion', unlocked: false, description: 'Top 3 in leaderboard' },
-                    { emoji: '💎', name: '100 XP', unlocked: false, description: 'Earn 100 XP' },
-                    { emoji: '🚀', name: 'Speed Learner', unlocked: false, description: 'Finish units quickly' },
+                    { emoji: '🌟', name: 'First Step', unlocked: lessonsCompleted >= 1, description: 'Finish your first level' },
+                    { emoji: '💎', name: '100 XP', unlocked: stats.xp >= 100, description: 'Earn 100 XP' },
+                    { emoji: '📖', name: '10 Levels', unlocked: lessonsCompleted >= 10, description: 'Complete 10 levels' },
+                    { emoji: '🔥', name: '7 Day Streak', unlocked: stats.streak >= 7, description: 'Keep a 7 day streak' },
+                    { emoji: '⭐', name: 'Level 5', unlocked: stats.level >= 5, description: 'Reach level 5' },
+                    { emoji: '🏰', name: 'Boss Slayer', unlocked: Array.from(done).some((id) => id.endsWith('#quiz')), description: 'Beat your first unit boss' },
+                    { emoji: '🎓', name: 'Course Champion', unlocked: courses.some((c) => c.units.every((u) => levelsOf(u).every((l) => done.has(l.id)))), description: 'Finish an entire course' },
+                    { emoji: '🚀', name: 'Marathon', unlocked: lessonsCompleted >= 50, description: 'Complete 50 levels' },
                   ].map((achievement, i) => (
                     <button
                       key={i}
