@@ -1,4 +1,6 @@
 import React from 'react';
+import { useSyncExternalStore } from 'react';
+import { getSnapshot, onStatsChange } from '../lib/stats';
 import { Home, Trophy, User, BadgeCheck, Settings2 } from 'lucide-react';
 import { Screen } from '../types';
 
@@ -19,6 +21,7 @@ const Navigation: React.FC<NavigationProps> = ({
   currentScreen,
   onNavigate,
 }) => {
+  const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
   const isActive = (screen: Screen) =>
     currentScreen === screen || (currentScreen === 'lesson' && screen === 'home');
 
@@ -70,17 +73,17 @@ const Navigation: React.FC<NavigationProps> = ({
               </div>
               <div>
                 <p className="font-bold text-text-primary">New Learner</p>
-                <p className="text-xs text-text-secondary">Level 5</p>
+                <p className="text-xs text-text-secondary">Level {stats.level}</p>
               </div>
             </div>
             <div className="flex justify-between text-sm">
               <div className="flex items-center gap-1 text-text-secondary">
                 <span>🔥</span>
-                <span className="font-semibold">7</span>
+                <span className="font-semibold">{stats.streak}</span>
               </div>
               <div className="flex items-center gap-1 text-text-secondary">
                 <span>⚡</span>
-                <span className="font-semibold">3,450 XP</span>
+                <span className="font-semibold">{stats.xp.toLocaleString()} XP</span>
               </div>
             </div>
           </div>

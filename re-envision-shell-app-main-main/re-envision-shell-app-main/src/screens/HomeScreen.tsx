@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Bell, BookOpen, Clock, Heart, Sparkles, TrendingUp, Zap } from 'lucide-react';
+import { BookOpen, Clock, Sparkles, TrendingUp, Zap } from 'lucide-react';
 import Card from '../ui/Card';
 import RoadmapPath from '../ui/RoadmapPath';
 import { courses } from '../data/curriculum';
 import { unitStatuses } from '../lib/progress';
+import { getSnapshot, onStatsChange } from '../lib/stats';
+import { useSyncExternalStore } from 'react';
+import HeaderStats from '../ui/HeaderStats';
 import { Screen } from '../types';
 
 interface HomeScreenProps {
@@ -23,8 +26,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
   const activeUnit =
     selectedCourse.units.find((u) => u.id === activeUnitId) ?? defaultUnit;
 
-  const userXP = 3450;
-  const streak = 7;
+  const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
   const completedCount = statuses.filter((s) => s === 'completed').length;
   const progress = Math.round((completedCount / selectedCourse.units.length) * 100);
 
@@ -43,19 +45,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
           <h1 className="text-3xl font-bold text-text-primary">Welcome back!</h1>
           <p className="mt-1 text-text-secondary">Choose a course and continue your AI literacy journey</p>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl bg-white dark:bg-neutral-dark px-4 py-3 shadow-panel">
-          <div className="flex items-center gap-2 rounded-full bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-600">
-            <Heart className="h-4 w-4 fill-orange-500" />
-            <span>{20} Hearts</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-2 text-sm font-semibold text-primary">
-            <Zap className="h-4 w-4" />
-            <span>{userXP.toLocaleString()} XP</span>
-          </div>
-          <button className="rounded-full bg-white dark:bg-white/5 shadow-panel p-2 text-text-secondary transition hover:shadow-card-hover">
-            <Bell className="h-4 w-4" />
-          </button>
-        </div>
+        <HeaderStats />
       </div>
 
       <div className="px-4 sm:px-6 lg:px-0">
@@ -156,7 +146,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🔥</span>
                     <div>
-                      <p className="font-bold text-text-primary">{streak} Days</p>
+                      <p className="font-bold text-text-primary">{stats.streak} {stats.streak === 1 ? 'Day' : 'Days'}</p>
                       <p className="text-xs text-text-secondary">Current streak</p>
                     </div>
                   </div>
@@ -166,7 +156,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-3">
                     <Zap className="h-6 w-6 text-secondary" />
                     <div>
-                      <p className="font-bold text-text-primary">{userXP.toLocaleString()} XP</p>
+                      <p className="font-bold text-text-primary">{stats.xp.toLocaleString()} XP</p>
                       <p className="text-xs text-text-secondary">Total earned</p>
                     </div>
                   </div>
@@ -176,8 +166,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
                   <div className="flex items-center gap-3">
                     <TrendingUp className="h-6 w-6 text-primary" />
                     <div>
-                      <p className="font-bold text-text-primary">Level 5</p>
-                      <p className="text-xs text-text-secondary">750 XP to next</p>
+                      <p className="font-bold text-text-primary">Level {stats.level}</p>
+                      <p className="text-xs text-text-secondary">{stats.needed - stats.into} XP to next</p>
                     </div>
                   </div>
                 </div>
@@ -209,11 +199,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
         <div className="lg:hidden mt-8">
           <div className="mx-auto grid max-w-lg grid-cols-2 gap-4">
             <div className="bg-white dark:bg-neutral-dark rounded-2xl shadow-panel p-4 text-center">
-              <p className="text-3xl font-bold text-primary">{streak}</p>
+              <p className="text-3xl font-bold text-primary">{stats.streak}</p>
               <p className="text-sm font-semibold text-text-secondary">Day Streak</p>
             </div>
             <div className="bg-white dark:bg-neutral-dark rounded-2xl shadow-panel p-4 text-center">
-              <p className="text-3xl font-bold text-secondary">{userXP.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-secondary">{stats.xp.toLocaleString()}</p>
               <p className="text-sm font-semibold text-text-secondary">Total XP</p>
             </div>
           </div>
