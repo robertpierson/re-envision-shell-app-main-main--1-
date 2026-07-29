@@ -1,19 +1,52 @@
 import React, { useState } from 'react';
 import { Mail, Sparkles } from 'lucide-react';
 import Button from '../ui/Button';
+import { backendConfigured, signInAsGuest, signInWithEmail, verifyEmailCode } from '../lib/supabase';
 
 interface Props {
   onComplete: () => void;
 }
 
+// Real auth: guest = Supabase anonymous session (falls back to local-only if
+// the backend is unreachable), email = one-time code / magic link.
 const SignIn: React.FC<Props> = ({ onComplete }) => {
-  const [mode, setMode] = useState<'landing' | 'email'>('landing');
+  const [mode, setMode] = useState<'landing' | 'email' | 'code'>('landing');
   const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
 
   const finish = () => {
     setClosing(true);
     setTimeout(onComplete, 200);
+  };
+
+  const guest = async () => {
+    setBusy(true);
+    await signInAsGuest(); // best effort — local-only is a fine outcome
+    setBusy(false);
+    finish();
+  };
+
+  const sendEmail = async () => {
+    if (!email.includes('@')) {
+      setNotice('That does not look like an email address.');
+      return;
+    }
+    setBusy(true);
+    const res = await signInWithEmail(email);
+    setBusy(false);
+    setNotice(res.message);
+    if (res.ok) setMode('code');
+  };
+
+  const submitCode = async () => {
+    setBusy(true);
+    const ok = await verifyEmailCode(email, code.trim());
+    setBusy(false);
+    if (ok) finish();
+    else setNotice('Code not accepted — if your email had a link instead, tap that and come back.');
   };
 
   return (
@@ -39,14 +72,14 @@ const SignIn: React.FC<Props> = ({ onComplete }) => {
 
         <h1 className="text-xl font-bold text-text-primary">Welcome to ReEnvision</h1>
         <p className="mt-2 text-sm text-text-secondary">
-          Sign in to sync your progress, or continue as a guest.
+          Sign in to appear on the class leaderboard, or play as a guest.
         </p>
 
         <div className="mt-6 space-y-3">
-          {mode === 'landing' ? (
+          {mode === 'landing' && (
             <>
-              <Button variant="primary" className="w-full !py-3 !text-base" onClick={finish}>
-                Continue with Google
+              <Button variant="primary" className="w-full !py-3 !text-base" onClick={guest} disabled={busy}>
+                {busy ? 'Starting…' : 'Start learning'}
               </Button>
               <button
                 onClick={() => setMode('email')}
@@ -56,7 +89,8 @@ const SignIn: React.FC<Props> = ({ onComplete }) => {
                 Sign in with email
               </button>
             </>
-          ) : (
+          )}
+          {mode === 'email' && (
             <>
               <input
                 autoFocus
@@ -66,23 +100,43 @@ const SignIn: React.FC<Props> = ({ onComplete }) => {
                 placeholder="you@example.com"
                 className="input !text-base text-center"
               />
-              <Button variant="primary" className="w-full !py-3 !text-base" onClick={finish}>
-                Continue
+              <Button variant="primary" className="w-full !py-3 !text-base" onClick={sendEmail} disabled={busy}>
+                {busy ? 'Sending…' : 'Send me a sign-in code'}
+              </Button>
+            </>
+          )}
+          {mode === 'code' && (
+            <>
+              <input
+                autoFocus
+                inputMode="numeric"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="6-digit code"
+                className="input !text-base text-center tracking-[0.4em]"
+              />
+              <Button variant="primary" className="w-full !py-3 !text-base" onClick={submitCode} disabled={busy || code.trim().length < 6}>
+                {busy ? 'Checking…' : 'Verify code'}
               </Button>
             </>
           )}
         </div>
 
-        <button
-          onClick={finish}
-          className="mt-5 text-sm font-semibold text-text-secondary transition hover:text-text-primary"
-        >
-          Continue as guest
-        </button>
+        {mode !== 'landing' && (
+          <button
+            onClick={guest}
+            className="mt-5 text-sm font-semibold text-text-secondary transition hover:text-text-primary"
+          >
+            Skip — play as guest
+          </button>
+        )}
 
-        <p className="mt-4 text-xs text-text-light">
-          Placeholder flow — authentication to be integrated later.
-        </p>
+        {notice && <p className="mt-4 text-xs font-semibold text-text-secondary">{notice}</p>}
+        {!backendConfigured && (
+          <p className="mt-4 text-xs text-text-light">
+            Offline build — progress stays on this device.
+          </p>
+        )}
       </div>
     </div>
   );

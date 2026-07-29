@@ -66,6 +66,23 @@ export function completeLevel(levelId: string): void {
   const done = read();
   done.add(levelId);
   write(done);
+  void pushProgressToBackend(levelId);
+}
+
+// Backend seam — supabase.ts registers a sender when configured.
+type ProgressSender = (levelId: string) => Promise<void>;
+let progressSender: ProgressSender | null = null;
+
+export function registerProgressBackend(fn: ProgressSender) {
+  progressSender = fn;
+}
+
+async function pushProgressToBackend(levelId: string) {
+  try {
+    if (progressSender) await progressSender(levelId);
+  } catch {
+    // offline — the local record is what the UI uses
+  }
 }
 
 export function resetProgress(): void {

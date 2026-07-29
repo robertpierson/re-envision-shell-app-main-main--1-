@@ -13,6 +13,7 @@ import SplashScreen from './screens/SplashScreen';
 import SignIn from './screens/SignIn';
 import { CourseUnit, findUnit } from './data/curriculum';
 import { Level, completeLevel } from './lib/progress';
+import './lib/supabase'; // registers the backend sync seams
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
