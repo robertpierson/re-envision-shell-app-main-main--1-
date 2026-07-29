@@ -59,13 +59,16 @@ function write(s: StatsState) {
   } catch {
     // no storage — stats just don't persist
   }
+  cachedSnapshot = null; // stats changed: next getSnapshot() rebuilds
   listeners.forEach((fn) => fn());
 }
 
 const listeners = new Set<() => void>();
 export function onStatsChange(fn: () => void): () => void {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 export function totalXp(s = read()): number {
@@ -102,10 +105,27 @@ export function streak(s = read()): number {
   return n;
 }
 
-export function getSnapshot() {
+export type StatsSnapshot = {
+  xp: number;
+  level: number;
+  into: number;
+  needed: number;
+  hearts: number;
+  maxHearts: number;
+  streak: number;
+  notifications: { text: string; at: string }[];
+};
+
+// useSyncExternalStore compares snapshots by reference, so this MUST hand back
+// the same object until something actually changes — building a fresh one per
+// call sends React into an infinite re-render loop.
+let cachedSnapshot: StatsSnapshot | null = null;
+
+export function getSnapshot(): StatsSnapshot {
+  if (cachedSnapshot) return cachedSnapshot;
   const s = read();
   const xp = totalXp(s);
-  return {
+  cachedSnapshot = {
     xp,
     ...levelFromXp(xp),
     hearts: hearts(s),
@@ -113,6 +133,7 @@ export function getSnapshot() {
     streak: streak(s),
     notifications: [...s.notifications].reverse().slice(0, 20),
   };
+  return cachedSnapshot;
 }
 
 function notify(s: StatsState, text: string) {
