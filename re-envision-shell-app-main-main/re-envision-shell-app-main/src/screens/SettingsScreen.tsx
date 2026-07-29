@@ -4,6 +4,37 @@ import Card from '../ui/Card';
 import ThemeToggle from '../ui/ThemeToggle';
 import { useTheme } from '../context/ThemeContext';
 
+const FAQ_ITEMS = [
+  {
+    q: 'How do I unlock the next unit?',
+    a: 'Finish every stop on the current unit’s island — all three lessons and the boss battle at the castle. Units always unlock in order, starting from Unit 1.',
+  },
+  {
+    q: 'What are hearts and why did I lose one?',
+    a: 'You get five hearts a day. A wrong answer in a boss battle costs one; reading lessons and their practice questions never does. At zero hearts the boss is safe until tomorrow, when hearts refill on their own.',
+  },
+  {
+    q: 'How does XP work?',
+    a: 'Correct answers are +5 XP, clearing a lesson is +20, and beating a boss is +60. Each level needs 100 XP more than the last. Replaying something you already finished earns nothing, so the leaderboard can’t be farmed.',
+  },
+  {
+    q: 'What keeps my streak alive?',
+    a: 'Complete at least one lesson or boss on a given day. The streak counts consecutive days and survives until a full day passes with nothing finished.',
+  },
+  {
+    q: 'What are classes?',
+    a: 'One class per certification track — Deep Learning Explorers, Foundation Model Builders, Language Wranglers and Vision Voyagers. Join one from the Leaderboard screen to compete on its board; you can switch classes at any time.',
+  },
+  {
+    q: 'Does the app work offline?',
+    a: 'Yes. The whole curriculum ships inside the app and your progress is stored on the device. Signing in only adds syncing and leaderboards on top.',
+  },
+  {
+    q: 'I found a mistake in a lesson — what do I do?',
+    a: 'Email support with the unit and lesson name. Every code example and quiz answer in the curriculum is machine-checked before release, but reports always get a human look.',
+  },
+];
+
 const SettingsScreen: React.FC = () => {
   const { theme } = useTheme();
 
@@ -169,9 +200,28 @@ const SettingsScreen: React.FC = () => {
             </div>
           </div>
           <div className="mt-4 space-y-2">
-            <button className="w-full text-left px-4 py-3 rounded-xl shadow-panel hover:shadow-card-hover transition-shadow">FAQ</button>
-            <button className="w-full text-left px-4 py-3 rounded-xl shadow-panel hover:shadow-card-hover transition-shadow">Contact Support</button>
-            <button className="w-full text-left px-4 py-3 rounded-xl shadow-panel hover:shadow-card-hover transition-shadow">Privacy Policy</button>
+            {FAQ_ITEMS.map((item) => (
+              <details key={item.q} className="rounded-xl px-4 py-3 shadow-panel transition-shadow open:shadow-card-hover">
+                <summary className="cursor-pointer text-sm font-bold text-text-primary marker:text-primary">{item.q}</summary>
+                <p className="mt-2 text-sm leading-relaxed text-text-secondary">{item.a}</p>
+              </details>
+            ))}
+            <a
+              href="mailto:support@reenvision.app?subject=ReEnvision%20support"
+              className="block w-full rounded-xl px-4 py-3 text-left text-sm font-bold text-primary shadow-panel transition-shadow hover:shadow-card-hover"
+            >
+              Contact support — support@reenvision.app
+            </a>
+            <details className="rounded-xl px-4 py-3 shadow-panel">
+              <summary className="cursor-pointer text-sm font-bold text-text-primary marker:text-primary">Privacy, in one paragraph</summary>
+              <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                Your lessons, XP, hearts and streak live on this device. If you sign in, the same
+                numbers sync to your account so leaderboards work — nothing else is collected: no
+                ads, no trackers, no selling data, and guest accounts carry no personal details at
+                all. Signed-in classmates can see your display name, avatar and XP on the
+                leaderboard, and nothing more.
+              </p>
+            </details>
           </div>
         </Card>
       </div>
