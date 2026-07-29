@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Screen } from './types';
 import Navigation from './navigation/Navigation';
 import HomeScreen from './screens/HomeScreen.tsx';
+import UnitMapScreen from './screens/UnitMapScreen.tsx';
 import LessonScreen from './screens/LessonScreen.tsx';
 import LeaderboardScreen from './screens/LeaderboardScreen.tsx';
 import CertificationScreen from './screens/CertificationScreen.tsx';
@@ -9,10 +10,13 @@ import ProfileScreen from './screens/ProfileScreen.tsx';
 import SettingsScreen from './screens/SettingsScreen.tsx';
 import SplashScreen from './screens/SplashScreen';
 import SignIn from './screens/SignIn';
+import { CourseUnit, findUnit } from './data/curriculum';
+import { Level, completeLevel } from './lib/progress';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
-  const [currentLessonId, setCurrentLessonId] = useState<string | undefined>();
+  const [activeUnit, setActiveUnit] = useState<CourseUnit | undefined>();
+  const [activeLevel, setActiveLevel] = useState<Level | undefined>();
   const [showSplash, setShowSplash] = useState(true);
   const [signedIn, setSignedIn] = useState(() => {
     try {
@@ -46,19 +50,45 @@ function App() {
   }, []);
 
   const handleNavigate = (screen: Screen, lessonId?: string) => {
+    // Navigating to a unit goes through its world map, never straight to a page.
+    if (screen === 'lesson' || screen === 'unitmap') {
+      const unit = findUnit(lessonId);
+      if (unit) {
+        setActiveUnit(unit);
+        setCurrentScreen('unitmap');
+        return;
+      }
+    }
     setCurrentScreen(screen);
-    setCurrentLessonId(lessonId);
+  };
+
+  const handlePlayLevel = (unit: CourseUnit, level: Level) => {
+    setActiveUnit(unit);
+    setActiveLevel(level);
+    setCurrentScreen('lesson');
+  };
+
+  const handleLevelDone = () => {
+    if (activeLevel) completeLevel(activeLevel.id);
+    setActiveLevel(undefined);
+    setCurrentScreen('unitmap');
   };
 
   const handleExitLesson = () => {
-    // Frontend-only: save lesson progress will be added with backend
-    setCurrentScreen('home');
-    setCurrentLessonId(undefined);
+    setActiveLevel(undefined);
+    setCurrentScreen('unitmap');
   };
 
   // Lesson screen has its own layout (no bottom nav)
-  if (currentScreen === 'lesson') {
-    return <LessonScreen lessonId={currentLessonId} onExit={handleExitLesson} />;
+  if (currentScreen === 'lesson' && activeUnit && activeLevel) {
+    return (
+      <LessonScreen
+        unit={activeUnit}
+        level={activeLevel}
+        onComplete={handleLevelDone}
+        onExit={handleExitLesson}
+      />
+    );
   }
   if (showSplash) return <SplashScreen onFinish={() => setShowSplash(false)} />;
 
@@ -73,6 +103,13 @@ function App() {
       <main className="pb-16 lg:pl-64 lg:pb-0">
         <div className="lg:p-8">
           {currentScreen === 'home' && <HomeScreen onNavigate={handleNavigate} />}
+          {currentScreen === 'unitmap' && activeUnit && (
+            <UnitMapScreen
+              unit={activeUnit}
+              onBack={() => setCurrentScreen('home')}
+              onPlay={handlePlayLevel}
+            />
+          )}
           {currentScreen === 'leaderboard' && <LeaderboardScreen />}
           {currentScreen === 'certification' && <CertificationScreen />}
           {currentScreen === 'profile' && <ProfileScreen />}

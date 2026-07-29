@@ -1,6 +1,6 @@
 // Types for ReEnvision app (frontend-only schema placeholders)
 
-export type Screen = 'home' | 'lesson' | 'leaderboard' | 'certification' | 'profile' | 'settings';
+export type Screen = 'home' | 'unitmap' | 'lesson' | 'leaderboard' | 'certification' | 'profile' | 'settings';
 
 export type UnitStatus = 'locked' | 'current' | 'completed';
 
