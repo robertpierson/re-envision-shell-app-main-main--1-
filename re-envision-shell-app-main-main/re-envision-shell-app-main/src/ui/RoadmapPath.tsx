@@ -25,7 +25,7 @@ const NODE_SIZE = 76;
 const QUIZ_SIZE = 84;
 // Generous row height gives the hover tooltip and lesson chips of each unit
 // room to breathe so nothing overlaps the row above or below it.
-const ROW_H = 300;
+const ROW_H = 190;
 // Reserved space above the first node for its "Start"/hover badges — baked
 // into the geometry itself, since padding-top on an absolutely-positioned
 // container doesn't shift where its "top: Npx" children anchor.
@@ -216,20 +216,10 @@ const RoadmapPath: React.FC<RoadmapPathProps> = ({ units, statuses, activeUnitId
                 )}
               </button>
 
-              {/* Full lesson breakdown for this unit, always visible */}
-              <div className={`mt-4 flex w-80 flex-col items-center text-center ${isLocked ? 'opacity-50' : ''}`}>
-                <p className="text-sm font-bold leading-relaxed text-text-primary dark:text-white">{unit.title}</p>
-                <div className="mt-2.5 flex flex-wrap justify-center gap-2">
-                  {unit.lessons.map((lesson) => (
-                    <span
-                      key={lesson}
-                      className="rounded-lg bg-neutral dark:bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold leading-relaxed text-text-secondary dark:text-neutral-300"
-                    >
-                      {lesson}
-                    </span>
-                  ))}
-                </div>
-              </div>
+              {/* Just the unit name — the island shows the lessons */}
+              <p className={`mt-4 w-64 text-center text-sm font-bold leading-snug text-text-primary dark:text-white ${isLocked ? 'opacity-50' : ''}`}>
+                {unit.title}
+              </p>
             </div>
           );
         })}
