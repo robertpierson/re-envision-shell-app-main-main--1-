@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Mail, Sparkles } from 'lucide-react';
+import { Mail } from 'lucide-react';
 import Button from '../ui/Button';
+import Sandy from '../ui/Sandy';
 import { backendConfigured, signInAsGuest, signInWithEmail, verifyEmailCode } from '../lib/supabase';
 
 interface Props {
@@ -66,9 +67,7 @@ const SignIn: React.FC<Props> = ({ onComplete }) => {
           ${closing ? 'scale-95 opacity-0' : 'animate-scale-in'}
         `}
       >
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Sparkles className="h-7 w-7" />
-        </div>
+        <Sandy pose="portrait" float className="mx-auto mb-3 w-28 object-contain" />
 
         <h1 className="text-xl font-bold text-text-primary">Welcome to ReEnvision</h1>
         <p className="mt-2 text-sm text-text-secondary">

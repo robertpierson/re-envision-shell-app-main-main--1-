@@ -5,7 +5,7 @@ import { Level, isLevelComplete } from '../lib/progress';
 import { shuffleSet } from '../data/quizzes';
 import { bossSet } from '../data/questionBank';
 import { awardXp, getSnapshot, loseHeart, onStatsChange, XP_PER_BOSS, XP_PER_CORRECT } from '../lib/stats';
-import BossBot from '../ui/BossBot';
+import Sandy, { bossPoseForUnit } from '../ui/Sandy';
 import QuestionCard from '../ui/QuestionCard';
 
 interface BossBattleScreenProps {
@@ -25,6 +25,8 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
   const courseIndex = Math.max(0, courses.findIndex((c) => c.units.some((u) => u.id === unit.id)));
   const accent = ACCENTS[courseIndex % ACCENTS.length];
   const alreadyDone = isLevelComplete(level.id);
+  const unitNumber = Number(unit.lessonId.match(/unit(\d+)/)?.[1] ?? 1);
+  const bossPose = bossPoseForUnit(unitNumber);
 
   const [qIndex, setQIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -71,7 +73,6 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
     setAnswered(false);
   };
 
-  const mood = outcome === 'won' ? 'ko' : answered && selected === question?.correct ? 'hurt' : 'idle';
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#141824] to-[#0b0d12] text-white">
@@ -120,7 +121,13 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
 
       {outcome === 'fighting' && question && (
         <div className="mx-auto grid w-full max-w-4xl flex-1 gap-6 px-4 pb-24 pt-4 lg:grid-cols-[280px_1fr] lg:px-8">
-          <BossBot key={hitFlash} mood={mood} hit={answered && selected === question.correct} accent={accent} className="mx-auto w-52 lg:w-full" />
+          <Sandy
+            key={hitFlash}
+            pose={bossPose}
+            float={!answered}
+            hit={answered && selected === question.correct}
+            className="mx-auto w-52 drop-shadow-2xl lg:w-full"
+          />
           <div className="rounded-3xl bg-white p-5 text-text-primary shadow-overlay dark:bg-[#161b28] dark:text-white lg:p-6">
             <p className="mb-3 text-[11px] font-extrabold uppercase tracking-widest text-text-light">
               Question {qIndex + 1} of {total}
@@ -141,7 +148,7 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
 
       {outcome === 'won' && (
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-6 text-center">
-          <BossBot mood="ko" hit={false} accent={accent} className="w-56" />
+          <Sandy pose={bossPose} ko className="w-56 drop-shadow-2xl" />
           <h2 className="mt-4 text-3xl font-extrabold">Boss defeated!</h2>
           <p className="mt-2 text-sm text-white/80">
             {hits} of {total} hits landed{alreadyDone ? ' (replay — no extra XP)' : ` · +${XP_PER_BOSS + hits * XP_PER_CORRECT} XP`}. The next unit is now open.
@@ -157,7 +164,7 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
 
       {outcome === 'lost' && (
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-6 text-center">
-          <BossBot mood="idle" hit={false} accent={accent} className="w-56" />
+          <Sandy pose={bossPose} float className="w-56 drop-shadow-2xl" />
           <h2 className="mt-4 text-3xl font-extrabold">{heartsLeft <= 0 ? 'Out of hearts!' : 'The boss held on!'}</h2>
           <p className="mt-2 text-sm text-white/80">
             {heartsLeft <= 0

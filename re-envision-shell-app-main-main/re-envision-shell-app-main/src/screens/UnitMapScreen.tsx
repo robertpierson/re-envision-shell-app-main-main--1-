@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import Sandy from '../ui/Sandy';
 import { ArrowLeft, Lock, Play, Star, Trophy } from 'lucide-react';
 import { CourseUnit, courses } from '../data/curriculum';
 import { Level, levelStatuses, levelsOf, unitProgress } from '../lib/progress';
@@ -54,9 +55,17 @@ const UnitMapScreen: React.FC<UnitMapScreenProps> = ({ unit, onBack, onPlay }) =
         </div>
       </div>
 
-      <p className="mt-2 text-sm text-text-secondary dark:text-neutral-300">
-        Drag the island to look around. Tap a glowing stop to play it.
-      </p>
+      {/* Sandy guides the island — and warns you what waits at the castle */}
+      <div className="mt-2 flex items-center gap-3 rounded-3xl bg-white/70 p-3 shadow-panel backdrop-blur dark:bg-white/5">
+        <Sandy pose={done >= total ? 'clipboard-done' : 'teach-map'} className="h-20 w-20 shrink-0 object-contain" />
+        <p className="text-sm text-text-secondary dark:text-neutral-300">
+          {done >= total
+            ? "Every stop cleared. Sandy's already filed the paperwork — the next unit is open."
+            : done === total - 1
+              ? 'Only the castle left. Something in there does not look like the Sandy you know.'
+              : 'Drag the island to look around, then tap a glowing stop to play it. Clear all three lessons and the castle opens.'}
+        </p>
+      </div>
 
       <Scene3D className="mt-3 outline-none">
         <div className="relative w-full" style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}>

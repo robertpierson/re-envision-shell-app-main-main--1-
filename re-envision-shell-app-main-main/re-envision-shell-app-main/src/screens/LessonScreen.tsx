@@ -9,6 +9,7 @@ import { shuffleSet } from '../data/quizzes';
 import { videoFor } from '../data/videos';
 import { awardXp, getSnapshot, onStatsChange, XP_PER_CORRECT, XP_PER_LESSON } from '../lib/stats';
 import QuestionCard from '../ui/QuestionCard';
+import Sandy from '../ui/Sandy';
 import ProgressBar from '../ui/ProgressBar';
 
 interface LessonScreenProps {
@@ -180,10 +181,11 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
                 )
               ) : (
                 <div className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-panel dark:bg-white/5">
-                  <Film className="h-5 w-5 shrink-0 text-primary" />
-                  <p className="text-sm text-text-secondary dark:text-neutral-300">
-                    A 60–90 second video for this lesson is on the way. Until then, the summary below
-                    covers the same ground.
+                  <Sandy pose="laptop-study" className="h-16 w-16 shrink-0 object-contain" />
+                  <p className="flex-1 text-sm text-text-secondary dark:text-neutral-300">
+                    <Film className="mr-1.5 inline h-4 w-4 text-primary" />
+                    Sandy's 60–90 second video for this lesson is on the way. Until then, the summary
+                    below covers the same ground.
                   </p>
                 </div>
               )}
@@ -306,10 +308,10 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
 
       {phase === 'done' && (
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-6 text-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#58CC02]/15">
-            <Sparkles className="h-12 w-12 text-[#58CC02]" />
-          </div>
-          <h2 className="mt-5 text-2xl font-extrabold text-text-primary dark:text-white">Lesson cleared!</h2>
+          <Sandy pose="thumbs-goodjob" float className="w-44 object-contain" />
+          <h2 className="mt-3 flex items-center gap-2 text-2xl font-extrabold text-text-primary dark:text-white">
+            <Sparkles className="h-6 w-6 text-[#58CC02]" /> Lesson cleared!
+          </h2>
           <p className="mt-2 text-sm text-text-secondary dark:text-neutral-300">
             {questions.length > 0
               ? `You got ${correctCount} of ${questions.length} right${
