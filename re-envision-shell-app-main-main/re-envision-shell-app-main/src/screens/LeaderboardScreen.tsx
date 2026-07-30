@@ -5,10 +5,11 @@ import {
   ClassRow,
   fetchLeaderboard,
   getMyProfile,
+  joinClass,
   LeaderboardRow,
   listClasses,
-  updateMyProfile,
 } from '../lib/supabase';
+import ClassManager from '../ui/ClassManager';
 import { getSnapshot, onStatsChange } from '../lib/stats';
 
 type Tab = 'weekly' | 'alltime';
@@ -23,21 +24,19 @@ const LeaderboardScreen: React.FC = () => {
   const [classId, setClassId] = useState<string | null>(null); // null = everyone
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [myId, setMyId] = useState<string | null>(null);
-  const [myClassId, setMyClassId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [joining, setJoining] = useState(false);
 
   const load = async (cid: string | null) => {
     setLoading(true);
-    const [board, profile] = await Promise.all([fetchLeaderboard(cid), getMyProfile()]);
+    const [board, profile, cls] = await Promise.all([fetchLeaderboard(cid), getMyProfile(), listClasses()]);
     setRows(board);
     setMyId(profile?.id ?? null);
-    setMyClassId(profile?.class_id ?? null);
+    setClasses(cls);
     setLoading(false);
   };
 
   useEffect(() => {
-    listClasses().then(setClasses);
     void load(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -47,10 +46,9 @@ const LeaderboardScreen: React.FC = () => {
     void load(cid);
   };
 
-  const joinClass = async (cid: string) => {
+  const join = async (cid: string) => {
     setJoining(true);
-    const ok = await updateMyProfile({ class_id: cid });
-    if (ok) setMyClassId(cid);
+    await joinClass(cid);
     setJoining(false);
     void load(classId);
   };
@@ -99,21 +97,24 @@ const LeaderboardScreen: React.FC = () => {
               }`}
             >
               {c.emoji} {c.name}
-              {myClassId === c.id && ' · joined'}
+              {c.joined && ' · joined'}
             </button>
           ))}
         </div>
 
         {/* Join the class you're viewing */}
-        {classId && myId && myClassId !== classId && (
+        {classId && myId && !classes.find((c) => c.id === classId)?.joined && (
           <button
-            onClick={() => joinClass(classId)}
+            onClick={() => join(classId)}
             disabled={joining}
             className="flex items-center gap-2 rounded-2xl bg-secondary px-4 py-2.5 text-sm font-extrabold text-white shadow-md transition hover:brightness-105"
           >
             <Users className="h-4 w-4" /> {joining ? 'Joining…' : 'Join this class'}
           </button>
         )}
+
+        {/* Create a class, or join one with a code */}
+        <ClassManager classes={classes} onChanged={() => load(classId)} signedIn={Boolean(myId)} />
 
         {/* Week / all-time */}
         <div className="flex gap-2">

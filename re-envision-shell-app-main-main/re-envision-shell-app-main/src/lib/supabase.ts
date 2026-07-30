@@ -21,13 +21,18 @@ export interface ClassRow {
   name: string;
   course_id: string;
   emoji: string;
+  join_code: string;
+  description: string;
+  owner_id: string | null;
+  member_count?: number;
+  joined?: boolean;
 }
 
 export interface LeaderboardRow {
   user_id: string;
   display_name: string;
   avatar: string;
-  class_id: string | null;
+  class_id?: string | null;
   total_xp: number;
   week_xp: number;
 }
@@ -91,13 +96,81 @@ export async function updateMyProfile(patch: Partial<Pick<ProfileRow, 'display_n
 
 export async function listClasses(): Promise<ClassRow[]> {
   if (!client) return [];
-  const { data } = await client.from('re_classes').select('id, slug, name, course_id, emoji').order('course_id');
-  return (data as ClassRow[]) ?? [];
+  const uid = await userId();
+  const [{ data: classes }, { data: stats }, mine] = await Promise.all([
+    client.from('re_classes').select('id, slug, name, course_id, emoji, join_code, description, owner_id').order('course_id'),
+    client.from('re_class_stats').select('class_id, member_count'),
+    uid
+      ? client.from('re_class_members').select('class_id').eq('user_id', uid)
+      : Promise.resolve({ data: [] as { class_id: string }[] }),
+  ]);
+  const counts = new Map((stats ?? []).map((s: { class_id: string; member_count: number }) => [s.class_id, s.member_count]));
+  const joined = new Set((mine.data ?? []).map((m: { class_id: string }) => m.class_id));
+  return ((classes as ClassRow[]) ?? []).map((c) => ({
+    ...c,
+    member_count: counts.get(c.id) ?? 0,
+    joined: joined.has(c.id),
+  }));
+}
+
+/** Create a class. The join code is generated server-side. */
+export async function createClass(input: {
+  name: string;
+  emoji: string;
+  description: string;
+  course_id: string;
+}): Promise<{ ok: boolean; message: string; created?: ClassRow }> {
+  const uid = await userId();
+  if (!client) return { ok: false, message: 'Backend not configured on this build.' };
+  if (!uid) return { ok: false, message: 'Sign in first — classes belong to an account.' };
+  const slug =
+    input.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) ||
+    `class-${Date.now()}`;
+  const { data, error } = await client
+    .from('re_classes')
+    .insert({ ...input, slug: `${slug}-${Math.random().toString(36).slice(2, 6)}`, owner_id: uid })
+    .select('id, slug, name, course_id, emoji, join_code, description, owner_id')
+    .single();
+  if (error || !data) return { ok: false, message: error?.message ?? 'Could not create that class.' };
+  const created = data as ClassRow;
+  await client.from('re_class_members').insert({ class_id: created.id, user_id: uid });
+  return { ok: true, message: `Created. Share code ${created.join_code}.`, created };
+}
+
+/** Join by the 6-character code someone shares with you. */
+export async function joinClassByCode(code: string): Promise<{ ok: boolean; message: string }> {
+  const uid = await userId();
+  if (!client) return { ok: false, message: 'Backend not configured on this build.' };
+  if (!uid) return { ok: false, message: 'Sign in first so your XP counts on the board.' };
+  const { data } = await client
+    .from('re_classes')
+    .select('id, name')
+    .eq('join_code', code.trim().toUpperCase())
+    .maybeSingle();
+  if (!data) return { ok: false, message: 'No class has that code.' };
+  const { error } = await client.from('re_class_members').insert({ class_id: data.id, user_id: uid });
+  if (error && !error.message.includes('duplicate')) return { ok: false, message: error.message };
+  return { ok: true, message: `Joined ${(data as { name: string }).name}.` };
+}
+
+export async function joinClass(classId: string): Promise<boolean> {
+  const uid = await userId();
+  if (!client || !uid) return false;
+  const { error } = await client.from('re_class_members').insert({ class_id: classId, user_id: uid });
+  return !error || error.message.includes('duplicate');
+}
+
+export async function leaveClass(classId: string): Promise<boolean> {
+  const uid = await userId();
+  if (!client || !uid) return false;
+  const { error } = await client.from('re_class_members').delete().eq('class_id', classId).eq('user_id', uid);
+  return !error;
 }
 
 export async function fetchLeaderboard(classId?: string | null): Promise<LeaderboardRow[]> {
   if (!client) return [];
-  let q = client.from('re_leaderboard').select('*').order('week_xp', { ascending: false }).limit(50);
+  const table = classId ? 're_class_leaderboard' : 're_leaderboard';
+  let q = client.from(table).select('*').order('week_xp', { ascending: false }).limit(50);
   if (classId) q = q.eq('class_id', classId);
   const { data } = await q;
   return (data as LeaderboardRow[]) ?? [];
