@@ -1896,6 +1896,34 @@ export const quizzes: Record<string, QuizQuestion[]> = {
   ]
 };
 
+/**
+ * Fisher-Yates over a copy. Answer order in the source curriculum is heavily
+ * skewed — two thirds of its correct answers sit in slot B — so every set is
+ * shuffled per attempt, choices and question order both, and `correct` is
+ * remapped to wherever the right option landed.
+ */
+export function shuffleQuestion(q: QuizQuestion): QuizQuestion {
+  const order = q.choices.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return {
+    ...q,
+    choices: order.map((i) => q.choices[i]),
+    correct: order.indexOf(q.correct),
+  };
+}
+
+export function shuffleSet(questions: QuizQuestion[]): QuizQuestion[] {
+  const out = questions.map(shuffleQuestion);
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 /** Questions for one lesson stage: a slice of the unit's pool. */
 export function lessonQuestions(lessonId: string, lessonIndex: number): QuizQuestion[] {
   const pool = quizzes[lessonId] ?? [];

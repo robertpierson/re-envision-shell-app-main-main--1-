@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Heart, Swords, Trophy } from 'lucide-react';
 import { CourseUnit, courses } from '../data/curriculum';
 import { Level, isLevelComplete } from '../lib/progress';
-import { bossQuestions } from '../data/quizzes';
+import { bossQuestions, shuffleSet } from '../data/quizzes';
 import { awardXp, getSnapshot, loseHeart, XP_PER_BOSS, XP_PER_CORRECT } from '../lib/stats';
 import BossBot from '../ui/BossBot';
 import QuestionCard from '../ui/QuestionCard';
@@ -20,7 +20,7 @@ const ACCENTS = ['#1CB0F6', '#CE82FF', '#2EC4B6', '#FF9600'];
 // every correct answer lands a hit, every wrong answer costs a heart from
 // the shared daily pool. Zero hearts ends the run — they refill tomorrow.
 const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComplete, onExit }) => {
-  const questions = useMemo(() => bossQuestions(unit.lessonId), [unit]);
+  const questions = useMemo(() => shuffleSet(bossQuestions(unit.lessonId)), [unit]);
   const courseIndex = Math.max(0, courses.findIndex((c) => c.units.some((u) => u.id === unit.id)));
   const accent = ACCENTS[courseIndex % ACCENTS.length];
   const alreadyDone = isLevelComplete(level.id);

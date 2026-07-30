@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, BookOpen, ExternalLink, Sparkles, Star } from 'lucide-react';
 import { CourseUnit } from '../data/curriculum';
 import { Level, isLevelComplete } from '../lib/progress';
-import { lessonQuestions } from '../data/quizzes';
+import { lessonQuestions, shuffleSet } from '../data/quizzes';
 import { awardXp, XP_PER_CORRECT, XP_PER_LESSON } from '../lib/stats';
 import QuestionCard from '../ui/QuestionCard';
 import ProgressBar from '../ui/ProgressBar';
@@ -18,7 +18,7 @@ interface LessonScreenProps {
 // scrolled to this lesson), then ANSWER a short interactive quiz about it.
 // Only clearing the questions finishes the level and unlocks the next stop.
 const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, onExit }) => {
-  const questions = useMemo(() => lessonQuestions(unit.lessonId, level.index), [unit, level]);
+  const questions = useMemo(() => shuffleSet(lessonQuestions(unit.lessonId, level.index)), [unit, level]);
   const [phase, setPhase] = useState<'read' | 'quiz' | 'done'>('read');
   const [qIndex, setQIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
