@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Heart, Swords, Trophy } from 'lucide-react';
+import React, { useMemo, useState, useSyncExternalStore } from 'react';
+import { ArrowLeft, Heart, Swords, Trophy, Zap } from 'lucide-react';
 import { CourseUnit, courses } from '../data/curriculum';
 import { Level, isLevelComplete } from '../lib/progress';
-import { bossQuestions, shuffleSet } from '../data/quizzes';
-import { awardXp, getSnapshot, loseHeart, XP_PER_BOSS, XP_PER_CORRECT } from '../lib/stats';
+import { shuffleSet } from '../data/quizzes';
+import { bossSet } from '../data/questionBank';
+import { awardXp, getSnapshot, loseHeart, onStatsChange, XP_PER_BOSS, XP_PER_CORRECT } from '../lib/stats';
 import BossBot from '../ui/BossBot';
 import QuestionCard from '../ui/QuestionCard';
 
@@ -20,7 +21,7 @@ const ACCENTS = ['#1CB0F6', '#CE82FF', '#2EC4B6', '#FF9600'];
 // every correct answer lands a hit, every wrong answer costs a heart from
 // the shared daily pool. Zero hearts ends the run — they refill tomorrow.
 const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComplete, onExit }) => {
-  const questions = useMemo(() => shuffleSet(bossQuestions(unit.lessonId)), [unit]);
+  const questions = useMemo(() => shuffleSet(bossSet(unit.lessonId)), [unit]);
   const courseIndex = Math.max(0, courses.findIndex((c) => c.units.some((u) => u.id === unit.id)));
   const accent = ACCENTS[courseIndex % ACCENTS.length];
   const alreadyDone = isLevelComplete(level.id);
@@ -32,6 +33,7 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
   const [hitFlash, setHitFlash] = useState(0);
   const [heartsLeft, setHeartsLeft] = useState(() => getSnapshot().hearts);
   const [outcome, setOutcome] = useState<'fighting' | 'won' | 'lost'>('fighting');
+  const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
 
   const total = questions.length;
   const bossHp = total - hits;
@@ -88,10 +90,16 @@ const BossBattleScreen: React.FC<BossBattleScreenProps> = ({ unit, level, onComp
             </p>
             <h1 className="truncate text-lg font-extrabold lg:text-xl">{unit.title}</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-1" aria-label={`${heartsLeft} hearts left`}>
-            {Array.from({ length: getSnapshot().maxHearts }).map((_, i) => (
-              <Heart key={i} className={`h-5 w-5 ${i < heartsLeft ? 'fill-accent text-accent' : 'text-white/25'}`} />
-            ))}
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="flex items-center gap-1" aria-label={`${heartsLeft} hearts left`}>
+              {Array.from({ length: stats.maxHearts }).map((_, i) => (
+                <Heart key={i} className={`h-5 w-5 ${i < heartsLeft ? 'fill-accent text-accent' : 'text-white/25'}`} />
+              ))}
+            </span>
+            <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1.5 text-sm font-bold">
+              <Zap className="h-4 w-4" style={{ color: accent }} />
+              {stats.xp.toLocaleString()}
+            </span>
           </div>
         </div>
 

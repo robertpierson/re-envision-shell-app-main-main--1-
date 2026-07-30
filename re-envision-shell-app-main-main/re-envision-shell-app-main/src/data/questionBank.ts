@@ -8679,3 +8679,28 @@ export const unitSummaries: Record<string, LessonSummary[]> = {
     }
   ]
 };
+
+/** Every question in a unit, across its three lessons. */
+export function unitPool(lessonId: string): QuizQuestion[] {
+  return [1, 2, 3].flatMap((n) => lessonBank[`${lessonId}#lesson-${n}`] ?? []);
+}
+
+/**
+ * Boss fight set: a spread across all three lessons rather than the whole
+ * pool, so a fight is 10 questions and not 24.
+ */
+export function bossSet(lessonId: string, size = 10): QuizQuestion[] {
+  const perLesson = [1, 2, 3].map((n) => lessonBank[`${lessonId}#lesson-${n}`] ?? []);
+  const out: QuizQuestion[] = [];
+  for (let round = 0; out.length < size; round++) {
+    let addedThisRound = false;
+    for (const bank of perLesson) {
+      if (round < bank.length && out.length < size) {
+        out.push(bank[round]);
+        addedThisRound = true;
+      }
+    }
+    if (!addedThisRound) break; // pool smaller than `size`
+  }
+  return out;
+}
