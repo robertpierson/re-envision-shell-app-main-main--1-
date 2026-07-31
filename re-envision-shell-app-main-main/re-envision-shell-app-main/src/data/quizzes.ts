@@ -1902,7 +1902,7 @@ export const quizzes: Record<string, QuizQuestion[]> = {
  * shuffled per attempt, choices and question order both, and `correct` is
  * remapped to wherever the right option landed.
  */
-export function shuffleQuestion(q: QuizQuestion): QuizQuestion {
+export function shuffleQuestion<T extends QuizQuestion>(q: T): T {
   const order = q.choices.map((_, i) => i);
   for (let i = order.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1912,16 +1912,16 @@ export function shuffleQuestion(q: QuizQuestion): QuizQuestion {
     ...q,
     choices: order.map((i) => q.choices[i]),
     correct: order.indexOf(q.correct),
-  };
+  } as T;
 }
 
-export function shuffleSet(questions: QuizQuestion[]): QuizQuestion[] {
-  const out = questions.map(shuffleQuestion);
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
+/**
+ * Shuffle the options inside every question, but KEEP the question order: the
+ * bank is deliberately ramped easy-first, and shuffling the sequence would put
+ * a tensor-shape question first on a lesson someone just started.
+ */
+export function shuffleSet<T extends QuizQuestion>(questions: T[]): T[] {
+  return questions.map((q) => shuffleQuestion(q) as T);
 }
 
 /** Questions for one lesson stage: a slice of the unit's pool. */
