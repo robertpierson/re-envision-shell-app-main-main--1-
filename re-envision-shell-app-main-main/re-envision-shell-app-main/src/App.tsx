@@ -14,6 +14,7 @@ import SignIn from './screens/SignIn';
 import { CourseUnit, findUnit } from './data/curriculum';
 import { Level, completeLevel } from './lib/progress';
 import './lib/supabase'; // registers the backend sync seams
+import { hydrateProfileFromBackend } from './lib/profile';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -36,6 +37,11 @@ function App() {
     }
     setSignedIn(true);
   };
+
+  // Pull the account's saved name and picture once a session exists
+  useEffect(() => {
+    void hydrateProfileFromBackend();
+  }, [signedIn]);
 
   // Register service worker on mount
   useEffect(() => {

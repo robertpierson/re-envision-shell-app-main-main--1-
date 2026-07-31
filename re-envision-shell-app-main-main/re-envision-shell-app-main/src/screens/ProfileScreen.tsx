@@ -3,6 +3,7 @@ import { Edit2, Award, Calendar, Target, TrendingUp, BookOpen, Clock } from 'luc
 import { useSyncExternalStore } from 'react';
 import { getSnapshot, onStatsChange } from '../lib/stats';
 import { readProgress } from '../lib/progress';
+import { getProfile, onProfileChange } from '../lib/profile';
 import { courses } from '../data/curriculum';
 import { levelsOf } from '../lib/progress';
 import AchievementModal from '../ui/AchievementModal';
@@ -10,13 +11,14 @@ import ProfileEditModal from '../ui/ProfileEditModal';
 
 const ProfileScreen: React.FC = () => {
   const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
+  const profile = useSyncExternalStore(onProfileChange, getProfile, getProfile);
   const done = readProgress();
   const allLevels = courses.flatMap((c) => c.units.flatMap((u) => levelsOf(u)));
   const lessonsCompleted = allLevels.filter((l) => done.has(l.id)).length;
   const completionPct = Math.round((lessonsCompleted / allLevels.length) * 100);
   const user = {
-    name: 'New Learner',
-    avatar: '🌟',
+    name: profile.displayName,
+    avatar: profile.avatar,
     joinedDate: 'today',
     stats: {
       streak: stats.streak,
@@ -45,9 +47,17 @@ const ProfileScreen: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
               {/* Avatar */}
               <div className="relative self-center lg:self-start">
-                <div className="w-24 h-24 lg:w-32 lg:h-32 rounded-full bg-white/20 flex items-center justify-center text-5xl lg:text-6xl">
-                  {user.avatar}
-                </div>
+                {profile.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt=""
+                    className="h-24 w-24 rounded-full object-cover lg:h-32 lg:w-32"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/20 text-5xl lg:h-32 lg:w-32 lg:text-6xl">
+                    {user.avatar}
+                  </div>
+                )}
                 <button
                   onClick={() => setShowEditModal(true)}
                   className="absolute bottom-1 right-1 p-3 bg-white rounded-full shadow-md hover:scale-110 transition-transform"
@@ -281,12 +291,7 @@ const ProfileScreen: React.FC = () => {
             title={selectedAchievement?.name}
             description={selectedAchievement?.description}
           />
-          <ProfileEditModal
-            open={showEditModal}
-            onClose={() => setShowEditModal(false)}
-            initialName={user.name}
-            initialAvatar={user.avatar}
-          />
+          <ProfileEditModal open={showEditModal} onClose={() => setShowEditModal(false)} />
         </div>
       </div>
     </div>

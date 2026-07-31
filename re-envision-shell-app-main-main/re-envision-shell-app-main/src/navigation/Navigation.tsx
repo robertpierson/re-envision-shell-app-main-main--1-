@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSyncExternalStore } from 'react';
 import { getSnapshot, onStatsChange } from '../lib/stats';
+import { getProfile, onProfileChange } from '../lib/profile';
 import { Home, Trophy, User, BadgeCheck, Settings2 } from 'lucide-react';
 import { Screen } from '../types';
 
@@ -22,6 +23,7 @@ const Navigation: React.FC<NavigationProps> = ({
   onNavigate,
 }) => {
   const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
+  const profile = useSyncExternalStore(onProfileChange, getProfile, getProfile);
   const isActive = (screen: Screen) =>
     currentScreen === screen || (currentScreen === 'lesson' && screen === 'home');
 
@@ -68,11 +70,15 @@ const Navigation: React.FC<NavigationProps> = ({
         <div className="p-4 shadow-divider-top">
           <div className="bg-neutral dark:bg-white/5 rounded-xl p-4 shadow-panel dark:shadow-none">
             <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-xl">
-                🌟
-              </div>
+              {profile.avatarUrl ? (
+                <img src={profile.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-xl">
+                  {profile.avatar}
+                </div>
+              )}
               <div>
-                <p className="font-bold text-text-primary">New Learner</p>
+                <p className="truncate font-bold text-text-primary">{profile.displayName}</p>
                 <p className="text-xs text-text-secondary">Level {stats.level}</p>
               </div>
             </div>
