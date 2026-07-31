@@ -6,13 +6,13 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import type { Biome } from '../data/biomes';
 import { buildTerrain } from './world/terrain';
-import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { sunDirection } from './world/sky';
 import { buildFlora } from './world/flora';
-import { groundMaps, rockMaps, waterNormals } from './world/textures';
+import { waterNormals } from './world/textures';
 import { buildCanopies } from './world/leaves';
 import { fbm, makeRng } from './world/noise';
 
@@ -95,53 +95,41 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.AgXToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 2.1;
     const canvas = renderer.domElement;
     canvas.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;cursor:grab';
     mount.appendChild(canvas);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.5, 20000);
+    const camera = new THREE.PerspectiveCamera(34, 1, 1, 400);
 
     // ------------------------------------------------------------------- sky
     const sunCfg = sunFor(biome);
-    const sky = new Sky();
-    sky.scale.setScalar(6000);
-    const sunDirEarly = sunDirection(sunCfg.elevation, sunCfg.azimuth);
-    {
-      const u = sky.material.uniforms;
-      u.turbidity.value = sunCfg.turbidity;
-      u.rayleigh.value = sunCfg.rayleigh;
-      u.mieCoefficient.value = 0.006;
-      u.mieDirectionalG.value = 0.82;
-      u.sunPosition.value.copy(sunDirEarly);
-    }
-    scene.add(sky);
-
-    // Capture the sky as the environment map: every PBR surface below is then
-    // lit and reflected by the actual sky rather than a guessed ambient colour.
+    // ------------------------------------------------------------------- sky
+    // A real scanned sky (Poly Haven, CC0) rather than an analytic gradient.
+    // It is both what you see and what lights the scene: PMREM turns it into
+    // the environment map, so every surface picks up true sky radiance,
+    // sun direction and horizon colour for free.
     const pmrem = new THREE.PMREMGenerator(renderer);
     pmrem.compileEquirectangularShader();
-    const envScene = new THREE.Scene();
-    const skyClone = new Sky();
-    skyClone.scale.setScalar(6000);
-    skyClone.material.uniforms.turbidity.value = sunCfg.turbidity;
-    skyClone.material.uniforms.rayleigh.value = sunCfg.rayleigh;
-    skyClone.material.uniforms.mieCoefficient.value = 0.006;
-    skyClone.material.uniforms.mieDirectionalG.value = 0.82;
-    skyClone.material.uniforms.sunPosition.value.copy(sunDirEarly);
-    envScene.add(skyClone);
-    const envRT = pmrem.fromScene(envScene, 0.03);
-    const envMap = envRT.texture;
-    scene.environment = envMap;
-    pmrem.dispose();
-    disposables.push(envRT);
+    let envRT: THREE.WebGLRenderTarget | null = null;
 
-    scene.fog = new THREE.FogExp2(biome.fog, 0.0022);
+    new RGBELoader().load('/env/sky_2k.hdr', (hdr) => {
+        hdr.mapping = THREE.EquirectangularReflectionMapping;
+        envRT = pmrem.fromEquirectangular(hdr);
+        scene.environment = envRT.texture;
+        scene.background = hdr;             // the sky itself, full resolution
+        scene.backgroundBlurriness = 0;
+        scene.environmentIntensity = 1.6;
+        setReady(true);
+      },
+      undefined,
+      () => setReady(true), // offline: keep the fallback island visible
+    );
 
     // ---------------------------------------------------------------- lights
-    const sunDir = sunDirection(sunCfg.elevation, sunCfg.azimuth);
-    const sun = new THREE.DirectionalLight(biome.sunColor, biome.sunIntensity * 0.5);
+    const sunDir = sunDirection(Math.max(0.62, sunCfg.elevation), sunCfg.azimuth);
+    const sun = new THREE.DirectionalLight(0xfff1de, 3.4);
     sun.position.copy(sunDir).multiplyScalar(60);
     sun.castShadow = true;
     sun.shadow.mapSize.set(4096, 4096);
@@ -157,10 +145,12 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     scene.add(sun);
     scene.add(sun.target);
     // sky bounce, tinted by the biome so shadows aren't neutral grey
-    scene.add(new THREE.HemisphereLight(biome.skyMid, biome.grassDark, 0.3));
+    
+
+    scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x6b7a52, 0.9));
 
     const world = new THREE.Group();
-    scene.add(world);
+        scene.add(world);
 
     // --------------------------------------------------------------- terrain
     const seed = Math.abs(biome.grass ^ biome.soil ^ Math.round(biome.sunIntensity * 1000));
@@ -172,23 +162,42 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       ruggedness: biome.name === 'Frostpeak' ? 0.75 : biome.name === 'Dunes' ? 0.15 : 0.45,
       flattenAt: NODE_XZ,
     });
-    const ground = groundMaps(biome.grass, biome.soil, seed, 512, 14);
+    // Scanned forest floor (Poly Haven, CC0): albedo, normal and roughness
+    // from a real surface. This is the single biggest jump away from a
+    // procedural look — no amount of noise reproduces real ground.
+    const texLoader = new THREE.TextureLoader();
+    const loadTiled = (url: string, repeat: number, srgb = false) => {
+      const t = texLoader.load(url);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.repeat.set(repeat, repeat);
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+      disposables.push(t);
+      return t;
+    };
+    const ground = {
+      map: loadTiled('/tex/forrest_ground_01_diff.jpg', 6, true),
+      normalMap: loadTiled('/tex/forrest_ground_01_nor_gl.jpg', 6),
+      roughnessMap: loadTiled('/tex/forrest_ground_01_rough.jpg', 6),
+    };
     const groundMat = new THREE.MeshStandardMaterial({
-      color: biome.grass,
+      // the scan is dark leaf litter; lift it toward the biome's grass
+      color: new THREE.Color(biome.grass).lerp(new THREE.Color(0xffffff), 0.25),
       map: ground.map,
       normalMap: ground.normalMap,
       roughnessMap: ground.roughnessMap,
       roughness: 1,
       metalness: 0,
       vertexColors: true,
-      envMapIntensity: 0.5,
+      envMapIntensity: 1.0,
     });
-    groundMat.normalScale.set(0.8, 0.8);
+    groundMat.normalScale.set(1.15, 1.15);
     const terrainMesh = new THREE.Mesh(terrain.geometry, groundMat);
-    terrainMesh.castShadow = true;
+    // a ground plane casting onto itself is pure acne, and buys nothing
+    terrainMesh.castShadow = false;
     terrainMesh.receiveShadow = true;
     world.add(terrainMesh);
-    disposables.push(terrain.geometry, groundMat, ground.map, ground.normalMap, ground.roughnessMap);
+    disposables.push(terrain.geometry, groundMat);
 
     // ----------------------------------------------------------------- water
     const wNormals = waterNormals(seed + 3);
@@ -199,7 +208,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       uSun: { value: sunDir },
       uSunColor: { value: new THREE.Color(biome.sunColor) },
       uNormals: { value: wNormals },
-      uEnv: { value: envMap },
+      uEnv: { value: null as THREE.Texture | null },
     };
     const waterGeo = new THREE.PlaneGeometry(RADIUS * 8, RADIUS * 8, 1, 1);
     waterGeo.rotateX(-Math.PI / 2);
@@ -262,7 +271,11 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     disposables.push(waterGeo, water.material as THREE.Material, wNormals);
 
     // ----------------------------------------------------------------- rocks
-    const rockTex = rockMaps(biome.soilDark, seed + 11, 256, 3);
+    const rockTex = {
+      map: loadTiled('/tex/aerial_rocks_02_diff.jpg', 1.5, true),
+      normalMap: loadTiled('/tex/aerial_rocks_02_nor_gl.jpg', 1.5),
+      roughnessMap: loadTiled('/tex/aerial_rocks_02_rough.jpg', 1.5),
+    };
     const rockMat = new THREE.MeshStandardMaterial({
       map: rockTex.map,
       normalMap: rockTex.normalMap,
@@ -295,7 +308,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       rock.receiveShadow = true;
       world.add(rock);
     }
-    disposables.push(rockMat, rockTex.map, rockTex.normalMap, rockTex.roughnessMap, ...rocksGeo);
+    disposables.push(rockMat, ...rocksGeo);
 
     // ---------------------------------------------------------------- plants
     const spots: { x: number; z: number; y: number; scale: number }[] = [];
@@ -393,7 +406,11 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     disposables.push(bladeGeo, grassMat);
 
     // ------------------------------------------------------------------ path
-    const stoneTex = rockMaps(biome.path, seed + 5, 128, 1);
+    const stoneTex = {
+      map: loadTiled('/tex/aerial_rocks_02_diff.jpg', 1, true),
+      normalMap: loadTiled('/tex/aerial_rocks_02_nor_gl.jpg', 1),
+      roughnessMap: loadTiled('/tex/aerial_rocks_02_rough.jpg', 1),
+    };
     const stoneMat = new THREE.MeshStandardMaterial({
       map: stoneTex.map,
       normalMap: stoneTex.normalMap,
@@ -432,10 +449,14 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       }
     }
     world.add(slabs);
-    disposables.push(slabGeo, stoneMat, stoneTex.map, stoneTex.normalMap, stoneTex.roughnessMap);
+    disposables.push(slabGeo, stoneMat);
 
     // ---------------------------------------------------------------- castle
-    const castleTex = rockMaps(0xd8d2c4, seed + 21, 256, 2);
+    const castleTex = {
+      map: loadTiled('/tex/aerial_rocks_02_diff.jpg', 7, true),
+      normalMap: loadTiled('/tex/aerial_rocks_02_nor_gl.jpg', 7),
+      roughnessMap: loadTiled('/tex/aerial_rocks_02_rough.jpg', 7),
+    };
     const castleMat = new THREE.MeshStandardMaterial({
       map: castleTex.map,
       normalMap: castleTex.normalMap,
@@ -482,10 +503,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     const [cx, cz] = NODE_XZ[3];
     castle.position.set(cx, terrain.heightAt(cx, cz) - 0.1, cz);
     world.add(castle);
-    disposables.push(
-      keepGeo, battlementGeo, towerGeo, roofGeo, flagGeo, castleMat, roofMat,
-      castleTex.map, castleTex.normalMap, castleTex.roughnessMap,
-    );
+    disposables.push(keepGeo, battlementGeo, towerGeo, roofGeo, flagGeo, castleMat, roofMat);
 
     // ------------------------------------------------------------ level gems
     const markers: { mesh: THREE.Mesh; glow: THREE.PointLight | null; base: number }[] = [];
@@ -569,6 +587,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
 
     const gtao = new GTAOPass(scene, camera, 1, 1);
     gtao.output = GTAOPass.OUTPUT.Default;
+    gtao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1, thickness: 1, scale: 1 });
     composer.addPass(gtao);
 
     const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.09, 0.3, 3.2);
@@ -580,7 +599,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       uniforms: {
         tDiffuse: { value: null },
         uVignette: { value: 0.85 },
-        uSat: { value: 1.32 },
+        uSat: { value: 1.12 },
         uLift: { value: new THREE.Color(biome.skyBottom).multiplyScalar(0.02) },
       },
       vertexShader: /* glsl */ `
@@ -759,6 +778,14 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       composer.render();
     };
     tick();
+    // dev-only: render one frame on demand and hand back a JPEG. rAF is frozen
+    // in a hidden tab, so this is the only way to inspect the real output.
+    if (import.meta.env.DEV || location.search.includes('shot')) {
+      (window as unknown as { __shot?: () => string }).__shot = () => {
+        composer.render();
+        return renderer.domElement.toDataURL('image/jpeg', 0.92);
+      };
+    }
 
     return () => {
       cancelAnimationFrame(raf);
