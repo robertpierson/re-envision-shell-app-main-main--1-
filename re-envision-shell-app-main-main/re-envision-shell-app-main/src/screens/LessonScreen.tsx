@@ -19,8 +19,8 @@ interface LessonScreenProps {
   onExit: () => void;
 }
 
-type Mode = 'summary' | 'full';
-/** How far down the material counts as "read enough to be quizzed". */
+type Mode = 'short' | 'full';
+/** How far down the written material counts as "read enough to be quizzed". */
 const READ_THRESHOLD = 0.85;
 
 const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, onExit }) => {
@@ -31,7 +31,8 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
   const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
 
   const [phase, setPhase] = useState<'learn' | 'quiz' | 'done'>('learn');
-  const [mode, setMode] = useState<Mode>('summary');
+  const [mode, setMode] = useState<Mode>('short');
+  const [videoDone, setVideoDone] = useState(false);
   const [readProgress, setReadProgress] = useState(0); // 0..1, furthest reached
   const [qIndex, setQIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -63,7 +64,8 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
     return () => win.removeEventListener('scroll', onScroll);
   }, [mode, loaded, noteScroll]);
 
-  const unlocked = readProgress >= READ_THRESHOLD;
+  // Either path counts: finish the short, or reach the end of the writing.
+  const unlocked = videoDone || readProgress >= READ_THRESHOLD;
   const question = questions[qIndex];
   const totalSteps = 1 + questions.length;
   const step = phase === 'learn' ? 0 : phase === 'done' ? totalSteps : 1 + qIndex;
@@ -141,7 +143,7 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
           <div className="mx-auto mt-4 w-full max-w-4xl px-4 lg:px-8">
             {/* Summary or the whole thing — their choice */}
             <div className="flex gap-2" role="tablist" aria-label="How to learn this lesson">
-              {(['summary', 'full'] as Mode[]).map((m) => (
+              {(['short', 'full'] as Mode[]).map((m) => (
                 <button
                   key={m}
                   role="tab"
@@ -156,77 +158,101 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
                       : 'bg-white text-text-secondary shadow-panel dark:bg-white/10 dark:text-neutral-300'
                   }`}
                 >
-                  {m === 'summary' ? '⚡ Quick summary' : '📖 Full lesson'}
+                  {m === 'short' ? '⚡ Short + summary' : '📖 Full lesson (optional)'}
                 </button>
               ))}
             </div>
 
-            {/* Short-form video slot */}
-            <div className="mt-3">
-              {video ? (
-                video.embed ? (
-                  <iframe
-                    src={video.src}
-                    title={`${level.title} — short video`}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
-                    className="aspect-video w-full rounded-3xl border border-neutral-dark/15 dark:border-white/10"
-                  />
-                ) : (
-                  <video
-                    src={video.src}
-                    controls
-                    playsInline
-                    className="aspect-video w-full rounded-3xl bg-black"
-                  />
-                )
-              ) : (
-                <div className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-panel dark:bg-white/5">
-                  <Sandy pose="laptop-study" className="h-16 w-16 shrink-0 object-contain" />
-                  <p className="flex-1 text-sm text-text-secondary dark:text-neutral-300">
-                    <Film className="mr-1.5 inline h-4 w-4 text-primary" />
-                    Sandy's 60–90 second video for this lesson is on the way. Until then, the summary
-                    below covers the same ground.
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* The material itself */}
-          {mode === 'summary' ? (
-            <div
-              onScroll={(e) => {
-                const el = e.currentTarget;
-                noteScroll(el.scrollTop, el.clientHeight, el.scrollHeight);
-              }}
-              className="mx-auto mt-3 w-full max-w-4xl flex-1 overflow-y-auto px-4 lg:px-8"
-              style={{ maxHeight: 'calc(100vh - 26rem)' }}
-            >
-              <div className="rounded-3xl bg-white p-5 shadow-panel dark:bg-white/5 lg:p-6">
-                <h2 className="text-lg font-extrabold text-text-primary dark:text-white">
-                  {summary?.title ?? level.title}
-                </h2>
-                {summary?.gist && (
-                  <p className="mt-3 text-sm leading-relaxed text-text-secondary dark:text-neutral-300">
-                    {summary.gist}
-                  </p>
+          {mode === 'short' ? (
+            <div className="mx-auto mt-4 grid w-full max-w-4xl flex-1 gap-4 px-4 lg:grid-cols-[300px_1fr] lg:px-8">
+              {/* The short itself — vertical, the shape it will actually be shot in */}
+              <div className="mx-auto w-full max-w-[300px]">
+                {video ? (
+                  video.embed ? (
+                    <iframe
+                      src={video.src}
+                      title={`${level.title} — short`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                      className={`w-full rounded-3xl border border-neutral-dark/15 dark:border-white/10 ${
+                        video.vertical === false ? 'aspect-video' : 'aspect-[9/16]'
+                      }`}
+                    />
+                  ) : (
+                    <video
+                      src={video.src}
+                      controls
+                      playsInline
+                      onEnded={() => setVideoDone(true)}
+                      className={`w-full rounded-3xl bg-black ${
+                        video.vertical === false ? 'aspect-video' : 'aspect-[9/16]'
+                      }`}
+                    />
+                  )
+                ) : (
+                  // Shaped exactly like the real thing, so nothing shifts when
+                  // the videos land.
+                  <div className="flex aspect-[9/16] w-full flex-col items-center justify-center gap-3 rounded-3xl bg-gradient-to-b from-primary/15 to-secondary/10 p-5 text-center shadow-panel">
+                    <Sandy pose="laptop-study" float className="w-28 object-contain" />
+                    <p className="text-sm font-extrabold text-text-primary dark:text-white">
+                      Sandy&rsquo;s 60-second short
+                    </p>
+                    <p className="text-xs leading-relaxed text-text-secondary dark:text-neutral-300">
+                      Not filmed yet. The summary beside this covers the same ground — read it and the
+                      quiz unlocks.
+                    </p>
+                    <span className="mt-1 flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-[11px] font-bold text-primary dark:bg-white/10">
+                      <Film className="h-3.5 w-3.5" /> Coming soon
+                    </span>
+                  </div>
                 )}
-                <p className="mt-5 text-[11px] font-extrabold uppercase tracking-widest text-primary">
-                  What you need to remember
-                </p>
-                <ul className="mt-2 space-y-2.5">
-                  {(summary?.points ?? []).map((p) => (
-                    <li key={p} className="flex gap-2.5">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#58CC02]" />
-                      <span className="text-sm font-semibold leading-relaxed text-text-primary dark:text-neutral-100">
-                        {p}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-5 text-xs text-text-light">
-                  Want the depth, the code and the worked examples? Switch to <strong>Full lesson</strong> above.
-                </p>
+                {video && !videoDone && (
+                  <button
+                    onClick={() => setVideoDone(true)}
+                    className="mt-2 w-full rounded-2xl bg-white px-3 py-2 text-xs font-bold text-text-secondary shadow-panel transition hover:shadow-card-hover dark:bg-white/10 dark:text-neutral-300"
+                  >
+                    I&rsquo;ve watched it
+                  </button>
+                )}
+              </div>
+
+              {/* The summary sits beside it and gates the quiz on its own */}
+              <div
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  noteScroll(el.scrollTop, el.clientHeight, el.scrollHeight);
+                }}
+                className="overflow-y-auto pr-1"
+                style={{ maxHeight: 'calc(100vh - 22rem)' }}
+              >
+                <div className="rounded-3xl bg-white p-5 shadow-panel dark:bg-white/5 lg:p-6">
+                  <h2 className="text-lg font-extrabold text-text-primary dark:text-white">
+                    {summary?.title ?? level.title}
+                  </h2>
+                  {summary?.gist && (
+                    <p className="mt-3 text-sm leading-relaxed text-text-secondary dark:text-neutral-300">
+                      {summary.gist}
+                    </p>
+                  )}
+                  <p className="mt-5 text-[11px] font-extrabold uppercase tracking-widest text-primary">
+                    What you need to remember
+                  </p>
+                  <ul className="mt-2 space-y-2.5">
+                    {(summary?.points ?? []).map((p) => (
+                      <li key={p} className="flex gap-2.5">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#58CC02]" />
+                        <span className="text-sm font-semibold leading-relaxed text-text-primary dark:text-neutral-100">
+                          {p}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-5 text-xs text-text-light">
+                    Want the depth, the code and the worked examples? <strong>Full lesson</strong> has all of
+                    it — and it is optional.
+                  </p>
+                </div>
               </div>
             </div>
           ) : (
@@ -238,7 +264,7 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
                 title={level.title}
                 onLoad={() => setLoaded(true)}
                 className="w-full rounded-3xl border border-neutral-dark/15 dark:border-white/10"
-                style={{ height: 'calc(100vh - 26rem)' }}
+                style={{ height: 'calc(100vh - 22rem)' }}
               />
               <a
                 href={`${unit.href}${level.hash}`}
@@ -258,7 +284,10 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
                 <div className="mb-2">
                   <div className="flex items-center justify-between text-xs font-bold text-text-secondary dark:text-neutral-300">
                     <span className="flex items-center gap-1.5">
-                      <BookOpen className="h-3.5 w-3.5" /> Scroll to the end to unlock the quiz
+                      <BookOpen className="h-3.5 w-3.5" />
+                      {mode === 'short'
+                        ? 'Watch the short, or read to the end of the summary'
+                        : 'Scroll to the end to unlock the quiz'}
                     </span>
                     <span>{Math.round(readProgress * 100)}%</span>
                   </div>
@@ -283,7 +312,8 @@ const LessonScreen: React.FC<LessonScreenProps> = ({ unit, level, onComplete, on
                   <>Quiz me — {questions.length} question{questions.length === 1 ? '' : 's'}</>
                 ) : (
                   <>
-                    <Lock className="h-4 w-4" /> Keep reading to unlock the quiz
+                    <Lock className="h-4 w-4" />
+                    {mode === 'short' ? 'Finish the short or the summary' : 'Keep reading to unlock the quiz'}
                   </>
                 )}
               </button>

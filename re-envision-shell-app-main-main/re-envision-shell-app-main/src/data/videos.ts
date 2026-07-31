@@ -1,5 +1,9 @@
-// Short-form lesson videos — one per lesson, 60-90 seconds, the "watch it
-// instead of reading it" path. Three per unit, 96 in total.
+// Short-form lesson videos — one per lesson, 60-90 seconds, shot vertical
+// (9:16) like a Short or a Reel. Three per unit, 96 in total.
+//
+// This is the main path, not a bonus: watch the short, skim the summary, take
+// the quiz. The full written lesson stays one tap away for anyone who wants
+// the depth, but nobody has to read it to make progress.
 //
 // Fill in a `src` as each video is produced; anything still empty shows a
 // "not filmed yet" card rather than a broken player, so shipping is not
@@ -10,8 +14,10 @@ export interface LessonVideo {
   src: string;
   /** Roughly how long, in seconds — shown before they commit to watching. */
   seconds?: number;
-  /** true when `src` is a page to iframe (YouTube/Vimeo) rather than a file. */
+  /** true when `src` is a page to iframe (YouTube Shorts/Vimeo) rather than a file. */
   embed?: boolean;
+  /** Defaults to vertical 9:16. Set false for a landscape clip. */
+  vertical?: boolean;
 }
 
 /** Keyed by `<lessonId>#lesson-<n>`, matching the question bank. */
