@@ -10,7 +10,10 @@ import {
   listClasses,
 } from '../lib/supabase';
 import ClassManager from '../ui/ClassManager';
+import Podium from '../ui/Podium';
+import Sandy from '../ui/Sandy';
 import { getSnapshot, onStatsChange } from '../lib/stats';
+import { getProfile, onProfileChange } from '../lib/profile';
 
 type Tab = 'weekly' | 'alltime';
 
@@ -19,6 +22,7 @@ type Tab = 'weekly' | 'alltime';
 // local stats — so the board is never a wall of strangers or a blank page.
 const LeaderboardScreen: React.FC = () => {
   const stats = useSyncExternalStore(onStatsChange, getSnapshot, getSnapshot);
+  const profile = useSyncExternalStore(onProfileChange, getProfile, getProfile);
   const [tab, setTab] = useState<Tab>('weekly');
   const [classes, setClasses] = useState<ClassRow[]>([]);
   const [classId, setClassId] = useState<string | null>(null); // null = everyone
@@ -58,6 +62,13 @@ const LeaderboardScreen: React.FC = () => {
     [rows, tab],
   );
   const iAmListed = myId !== null && sorted.some((r) => r.user_id === myId);
+  const metric = (r: LeaderboardRow) => (tab === 'weekly' ? r.week_xp : r.total_xp);
+  const top = sorted.slice(0, 3);
+  const rest = sorted.slice(3);
+  const leader = sorted.length ? metric(sorted[0]) : 0;
+  const myRank = myId ? sorted.findIndex((r) => r.user_id === myId) + 1 : 0;
+  const ahead = myRank > 1 ? sorted[myRank - 2] : null;
+  const gap = ahead && myRank > 1 ? metric(ahead) - metric(sorted[myRank - 1]) : 0;
 
   const rankBadge = (rank: number) =>
     rank === 1 ? (
@@ -138,6 +149,33 @@ const LeaderboardScreen: React.FC = () => {
           </button>
         </div>
 
+        {/* Where you stand, and what it would take to move up */}
+        <div className="flex flex-wrap items-center gap-3 rounded-3xl bg-white p-4 shadow-panel dark:bg-neutral-dark">
+          <Sandy pose={myRank === 1 ? 'thumbs-goodjob' : 'ball-correct'} className="h-16 w-16 shrink-0 object-contain" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-extrabold text-text-primary dark:text-white">
+              {myRank === 1
+                ? "You're top of this board."
+                : myRank > 1
+                  ? `You're #${myRank}${ahead ? ` — ${gap.toLocaleString()} XP behind ${ahead.display_name}` : ''}`
+                  : 'Not on this board yet'}
+            </p>
+            <p className="text-xs text-text-secondary dark:text-neutral-300">
+              {myRank === 1
+                ? 'Hold it — everyone else is one lesson away.'
+                : gap > 0
+                  ? `That's about ${Math.max(1, Math.ceil(gap / 20))} lesson${Math.ceil(gap / 20) === 1 ? '' : 's'} of catching up.`
+                  : 'Clear a lesson to put your name up here.'}
+            </p>
+          </div>
+          <span className="rounded-2xl bg-primary/10 px-3 py-2 text-sm font-extrabold text-primary">
+            {stats.xp.toLocaleString()} XP
+          </span>
+        </div>
+
+        {/* Top three */}
+        {sorted.length > 0 && <Podium top={top} metric={metric} meId={myId} />}
+
         {/* Board */}
         <div className="overflow-hidden rounded-3xl bg-white shadow-panel dark:bg-neutral-dark">
           {!backendConfigured && (
@@ -154,30 +192,54 @@ const LeaderboardScreen: React.FC = () => {
           )}
 
           <ul>
-            {sorted.map((r, i) => (
-              <li
-                key={r.user_id}
-                className={`flex items-center gap-3 px-4 py-3 ${
-                  r.user_id === myId ? 'bg-primary/10' : i % 2 ? 'bg-neutral/50 dark:bg-white/5' : ''
-                }`}
-              >
-                <span className="flex h-8 w-8 items-center justify-center">{rankBadge(i + 1)}</span>
-                <span className="text-xl">{r.avatar}</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-bold text-text-primary dark:text-white">
-                  {r.display_name}
-                  {r.user_id === myId && ' (you)'}
-                </span>
-                <span className="text-sm font-extrabold text-primary">
-                  {(tab === 'weekly' ? r.week_xp : r.total_xp).toLocaleString()} XP
-                </span>
-              </li>
-            ))}
+            {rest.map((r, i) => {
+              const value = metric(r);
+              const rank = i + 4; // the top three live on the podium
+              return (
+                <li
+                  key={r.user_id}
+                  className={`group relative flex items-center gap-3 px-4 py-3 transition-colors ${
+                    r.user_id === myId ? 'bg-primary/10' : 'hover:bg-neutral/60 dark:hover:bg-white/5'
+                  }`}
+                >
+                  {/* how big this score is next to the leader, drawn behind the row */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 bg-primary/5 transition-all duration-700 group-hover:bg-primary/10"
+                    style={{ width: `${leader ? (value / leader) * 100 : 0}%` }}
+                  />
+                  <span className="relative flex h-8 w-8 items-center justify-center">{rankBadge(rank)}</span>
+                  <span className="relative">
+                    {r.avatar_url ? (
+                      <img src={r.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+                    ) : (
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral text-lg dark:bg-white/10">
+                        {r.avatar}
+                      </span>
+                    )}
+                  </span>
+                  <span className="relative min-w-0 flex-1 truncate text-sm font-bold text-text-primary dark:text-white">
+                    {r.display_name}
+                    {r.user_id === myId && ' (you)'}
+                  </span>
+                  <span className="relative text-sm font-extrabold text-primary">
+                    {value.toLocaleString()} XP
+                  </span>
+                </li>
+              );
+            })}
 
             {/* Your local row when you're not on the shared board */}
             {!iAmListed && (
               <li className="flex items-center gap-3 bg-primary/10 px-4 py-3">
                 <span className="flex h-8 w-8 items-center justify-center text-sm font-extrabold text-text-light">—</span>
-                <span className="text-xl">🌟</span>
+                {profile.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg dark:bg-white/10">
+                    {profile.avatar}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1 truncate text-sm font-bold text-text-primary dark:text-white">
                   You{backendConfigured ? ' (not signed in to the board yet)' : ''}
                 </span>
