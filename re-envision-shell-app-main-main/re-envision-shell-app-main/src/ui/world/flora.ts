@@ -9,6 +9,8 @@ import type { Foliage } from '../../data/biomes';
 
 export interface FloraResult {
   group: THREE.Group;
+  /** Where each tree's crown sits, so leaf cards can be instanced over them. */
+  crowns: { x: number; y: number; z: number; radius: number }[];
   /** Called each frame with elapsed time so everything sways. */
   update: (t: number) => void;
   dispose: () => void;
@@ -104,20 +106,9 @@ export function buildFlora(params: {
   });
   const capMat = new THREE.MeshStandardMaterial({ color: accent, roughness: 0.55, metalness: 0.05 });
 
+  const crowns: { x: number; y: number; z: number; radius: number }[] = [];
   const geometries: THREE.BufferGeometry[] = [];
   const swayers: { obj: THREE.Object3D; phase: number; amount: number }[] = [];
-
-  const blob = (radius: number, detail = 1) => {
-    const g = new THREE.IcosahedronGeometry(radius, detail);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const s = 1 + (rand() - 0.5) * 0.28;
-      pos.setXYZ(i, pos.getX(i) * s, pos.getY(i) * s * 0.86, pos.getZ(i) * s);
-    }
-    g.computeVertexNormals();
-    geometries.push(g);
-    return g;
-  };
 
   spots.forEach(({ x, z, y, scale }) => {
     const g = new THREE.Group();
@@ -220,18 +211,8 @@ export function buildFlora(params: {
       trunk.castShadow = true;
       trunk.receiveShadow = true;
       g.add(trunk);
-      const canopy = new THREE.Group();
-      canopy.position.y = h;
-      for (let c = 0; c < 4; c++) {
-        const r = 0.72 - c * 0.1 + rand() * 0.12;
-        const leaf = new THREE.Mesh(blob(r, 1), c % 2 ? leafA : leafB);
-        leaf.position.set((rand() - 0.5) * 0.62, c * 0.36 + rand() * 0.12, (rand() - 0.5) * 0.62);
-        leaf.castShadow = true;
-        leaf.receiveShadow = true;
-        canopy.add(leaf);
-      }
-      g.add(canopy);
-      swayers.push({ obj: canopy, phase: rand() * 6.28, amount: 0.045 });
+      // the crown is drawn as instanced leaf cards, not solid geometry
+      crowns.push({ x, y: y + (h + 0.75) * scale, z, radius: (0.95 + rand() * 0.35) * scale });
     }
 
     g.position.set(x, y, z);
@@ -242,6 +223,7 @@ export function buildFlora(params: {
 
   return {
     group,
+    crowns,
     update: (t: number) => {
       for (const s of swayers) {
         s.obj.rotation.z = Math.sin(t * 1.15 + s.phase) * s.amount;

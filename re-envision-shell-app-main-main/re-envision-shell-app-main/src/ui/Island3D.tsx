@@ -5,6 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import type { Biome } from '../data/biomes';
 import { buildTerrain } from './world/terrain';
@@ -12,6 +13,7 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { sunDirection } from './world/sky';
 import { buildFlora } from './world/flora';
 import { groundMaps, rockMaps, waterNormals } from './world/textures';
+import { buildCanopies } from './world/leaves';
 import { fbm, makeRng } from './world/noise';
 
 // The unit world.
@@ -92,8 +94,8 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.55;
+    renderer.toneMapping = THREE.AgXToneMapping;
+    renderer.toneMappingExposure = 1.0;
     const canvas = renderer.domElement;
     canvas.style.cssText = 'width:100%;height:100%;display:block;touch-action:none;cursor:grab';
     mount.appendChild(canvas);
@@ -132,7 +134,6 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     const envRT = pmrem.fromScene(envScene, 0.03);
     const envMap = envRT.texture;
     scene.environment = envMap;
-    scene.background = envMap; // the sky itself, not a flat clear colour
     pmrem.dispose();
     disposables.push(envRT);
 
@@ -143,7 +144,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     const sun = new THREE.DirectionalLight(biome.sunColor, biome.sunIntensity * 0.5);
     sun.position.copy(sunDir).multiplyScalar(60);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(4096, 4096);
     sun.shadow.camera.near = 20;
     sun.shadow.camera.far = 110;
     const S = 22;
@@ -323,6 +324,14 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     });
     world.add(flora.group);
     disposables.push({ dispose: flora.dispose });
+
+    // Canopies: alpha-cut leaf cards instanced over each crown. One draw call,
+    // and the broken silhouette is what stops trees reading as lollipops.
+    if (flora.crowns.length) {
+      const canopies = buildCanopies(flora.crowns, biome.grassDark, seed + 300, 30);
+      world.add(canopies.mesh);
+      disposables.push({ dispose: canopies.dispose });
+    }
 
     // ------------------------------------------------------- grass instances
     const bladeGeo = new THREE.PlaneGeometry(0.11, 0.32, 1, 3);
@@ -558,6 +567,10 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
 
+    const gtao = new GTAOPass(scene, camera, 1, 1);
+    gtao.output = GTAOPass.OUTPUT.Default;
+    composer.addPass(gtao);
+
     const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.09, 0.3, 3.2);
     composer.addPass(bloom);
 
@@ -567,7 +580,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       uniforms: {
         tDiffuse: { value: null },
         uVignette: { value: 0.85 },
-        uSat: { value: 1.06 },
+        uSat: { value: 1.32 },
         uLift: { value: new THREE.Color(biome.skyBottom).multiplyScalar(0.02) },
       },
       vertexShader: /* glsl */ `
@@ -677,6 +690,7 @@ const Island3D: React.FC<Island3DProps> = ({ nodes, biome, className }) => {
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
       bloom.setSize(w, h);
+      gtao.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       place();
