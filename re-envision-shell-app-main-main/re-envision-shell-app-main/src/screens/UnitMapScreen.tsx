@@ -1,9 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import Sandy from '../ui/Sandy';
-import { ArrowLeft, Lock, Play, Star, Trophy } from 'lucide-react';
+import { ArrowLeft, Lock, Play, Star } from 'lucide-react';
 import { CourseUnit, courses } from '../data/curriculum';
 import { Level, levelStatuses, levelsOf, unitProgress } from '../lib/progress';
 import Scene3D from '../ui/Scene3D';
+const Island3D = React.lazy(() => import('../ui/Island3D'));
+
+/** '#58CC02' -> 0x58cc02, for three.js materials. */
+const hex = (css: string) => parseInt(css.replace('#', ''), 16);
 import WorldIsland, { ISLAND_PALETTES, NODE_POINTS, VIEW_H, VIEW_W } from '../ui/WorldIsland';
 
 interface UnitMapScreenProps {
@@ -23,7 +27,6 @@ const UnitMapScreen: React.FC<UnitMapScreenProps> = ({ unit, onBack, onPlay }) =
   const levels = useMemo(() => levelsOf(unit), [unit]);
   const statuses = levelStatuses(unit);
   const { done, total } = unitProgress(unit);
-  const [hovered, setHovered] = useState<number | null>(null);
 
   const courseIndex = Math.max(0, courses.findIndex((c) => c.units.some((u) => u.id === unit.id)));
   const palette = ISLAND_PALETTES[courseIndex % ISLAND_PALETTES.length];
@@ -67,84 +70,44 @@ const UnitMapScreen: React.FC<UnitMapScreenProps> = ({ unit, onBack, onPlay }) =
         </p>
       </div>
 
-      <Scene3D className="mt-3 outline-none">
-        <div className="relative w-full" style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}>
-          <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-50 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.45)] dark:from-slate-700 dark:via-slate-800 dark:to-slate-900" />
-
-          <WorldIsland
-            palette={palette}
-            unlockedThrough={unlockedThrough === -1 ? NODE_POINTS.length : unlockedThrough}
-            className="absolute inset-0 h-full w-full [transform:translateZ(30px)]"
+      {/* Real 3D world. three.js is code-split, so it never blocks first paint;
+          the CSS-3D island renders meanwhile and on machines without WebGL. */}
+      <div
+        className="relative mt-3 overflow-hidden rounded-[2rem] bg-gradient-to-b from-sky-300 via-sky-100 to-emerald-50 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.45)] dark:from-slate-700 dark:via-slate-800 dark:to-slate-900"
+        style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}
+      >
+        <React.Suspense
+          fallback={
+            <Scene3D className="h-full w-full outline-none">
+              <div className="relative h-full w-full">
+                <WorldIsland
+                  palette={palette}
+                  unlockedThrough={unlockedThrough === -1 ? NODE_POINTS.length : unlockedThrough}
+                  className="absolute inset-0 h-full w-full [transform:translateZ(30px)]"
+                />
+              </div>
+            </Scene3D>
+          }
+        >
+          <Island3D
+            className="h-full w-full"
+            palette={{
+              grass: hex(palette.grass),
+              grassDark: hex(palette.grassDark),
+              soil: hex(palette.soil),
+              soilDark: hex(palette.soilDark),
+              water: hex(palette.water),
+              accent: hex(palette.accent),
+            }}
+            nodes={levels.map((level, i) => ({
+              index: i,
+              label: level.kind === 'quiz' ? `Quiz · ${unit.quizCount} questions` : `Lesson ${level.index}: ${level.title}`,
+              status: statuses[i],
+              onSelect: () => statuses[i] !== 'locked' && onPlay(unit, level),
+            }))}
           />
-
-          {levels.map((level, i) => {
-            const point = NODE_POINTS[i];
-            const status = statuses[i];
-            const isQuiz = level.kind === 'quiz';
-            const color = LEVEL_COLORS[i % LEVEL_COLORS.length];
-            const open = status !== 'locked';
-
-            return (
-              <button
-                key={level.id}
-                type="button"
-                disabled={!open}
-                onClick={() => open && onPlay(unit, level)}
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-                onFocus={() => setHovered(i)}
-                onBlur={() => setHovered(null)}
-                aria-label={`${isQuiz ? 'Quiz' : `Lesson ${level.index}`}: ${level.title}${open ? '' : ' (locked)'}`}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform duration-200
-                  ${open ? 'hover:scale-110 active:scale-95 cursor-pointer' : 'cursor-not-allowed'}`}
-                style={{
-                  left: `${(point.x / VIEW_W) * 100}%`,
-                  top: `${(point.y / VIEW_H) * 100}%`,
-                  transform: `translate(-50%, -50%) translateZ(${open ? 74 : 50}px)`,
-                }}
-              >
-                <span
-                  className="relative flex items-center justify-center rounded-full"
-                  style={{
-                    width: isQuiz ? 74 : 64,
-                    height: isQuiz ? 74 : 64,
-                    backgroundColor: status === 'locked' ? '#B9BDC4' : color,
-                    boxShadow: `0 9px 0 0 ${status === 'locked' ? '#8E939A' : 'rgba(0,0,0,0.28)'}, 0 18px 26px -8px rgba(0,0,0,0.45)`,
-                  }}
-                >
-                  <span className="text-white drop-shadow">
-                    {status === 'completed' && <Star className="h-8 w-8 fill-white" />}
-                    {status === 'unlocked' && (isQuiz ? <Trophy className="h-8 w-8" /> : <Play className="h-8 w-8 fill-white" />)}
-                    {status === 'locked' && <Lock className="h-7 w-7" />}
-                  </span>
-
-                  {status === 'unlocked' && (
-                    <>
-                      <span
-                        className="absolute inset-0 animate-ping rounded-full opacity-60"
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-secondary px-3 py-1 text-[11px] font-extrabold uppercase tracking-widest text-white shadow-panel">
-                        Play
-                      </span>
-                    </>
-                  )}
-
-                  <span className="absolute -bottom-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-extrabold text-text-primary shadow-panel">
-                    {isQuiz ? '★' : level.index}
-                  </span>
-                </span>
-
-                {hovered === i && (
-                  <span className="pointer-events-none absolute left-1/2 top-full z-20 mt-3 w-56 -translate-x-1/2 rounded-2xl bg-text-primary/95 px-3 py-2 text-center text-xs font-semibold text-white shadow-overlay dark:bg-white/95 dark:text-text-primary">
-                    {isQuiz ? 'Unit quiz' : `Lesson ${level.index}`} · {level.title}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </Scene3D>
+        </React.Suspense>
+      </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         {levels.map((level, i) => {
