@@ -4,10 +4,9 @@ import { ArrowLeft, Lock, Play, Star } from 'lucide-react';
 import { CourseUnit, courses } from '../data/curriculum';
 import { Level, levelStatuses, levelsOf, unitProgress } from '../lib/progress';
 import Scene3D from '../ui/Scene3D';
+import { biomeFor } from '../data/biomes';
 const Island3D = React.lazy(() => import('../ui/Island3D'));
 
-/** '#58CC02' -> 0x58cc02, for three.js materials. */
-const hex = (css: string) => parseInt(css.replace('#', ''), 16);
 import WorldIsland, { ISLAND_PALETTES, NODE_POINTS, VIEW_H, VIEW_W } from '../ui/WorldIsland';
 
 interface UnitMapScreenProps {
@@ -30,6 +29,9 @@ const UnitMapScreen: React.FC<UnitMapScreenProps> = ({ unit, onBack, onPlay }) =
 
   const courseIndex = Math.max(0, courses.findIndex((c) => c.units.some((u) => u.id === unit.id)));
   const palette = ISLAND_PALETTES[courseIndex % ISLAND_PALETTES.length];
+  // Each unit is a different world; the course tints it.
+  const unitNumber = Number(unit.lessonId.match(/unit(\d+)/)?.[1] ?? 1);
+  const biome = useMemo(() => biomeFor(courseIndex, unitNumber), [courseIndex, unitNumber]);
   const unlockedThrough = statuses.findIndex((s) => s === 'locked');
 
   return (
@@ -91,14 +93,7 @@ const UnitMapScreen: React.FC<UnitMapScreenProps> = ({ unit, onBack, onPlay }) =
         >
           <Island3D
             className="h-full w-full"
-            palette={{
-              grass: hex(palette.grass),
-              grassDark: hex(palette.grassDark),
-              soil: hex(palette.soil),
-              soilDark: hex(palette.soilDark),
-              water: hex(palette.water),
-              accent: hex(palette.accent),
-            }}
+            biome={biome}
             nodes={levels.map((level, i) => ({
               index: i,
               label: level.kind === 'quiz' ? `Quiz · ${unit.quizCount} questions` : `Lesson ${level.index}: ${level.title}`,
